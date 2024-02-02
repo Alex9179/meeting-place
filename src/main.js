@@ -2,12 +2,13 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import vuetify from './plugins/vuetify'
 import { loadFonts } from './plugins/webfontloader'
+import './global.css';
 
 // Create a script tag
 const script = document.createElement('script')
 
 // Set the src attribute with the Google Maps API URL, including your API key
-script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.VUE_APP_GOOGLE_MAPS_API_KEY}`
+script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.VUE_APP_GOOGLE_MAPS_API_KEY}&libraries=places,drawing,geometry`
 
 // Set async and defer attributes
 script.async = true
