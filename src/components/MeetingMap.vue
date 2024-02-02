@@ -7,7 +7,8 @@
                     <v-card-subtitle>Let's start by find who's meeting</v-card-subtitle>
                     <v-row>
                         <v-col cols="12" sm="6">
-                            <v-text-field label="Where are you?" v-model="people[0].address" outlined @keyup.enter="locateLocation(0)">
+                            <v-text-field label="Where are you?" v-model="people[0].address" outlined
+                                @keyup.enter="locateLocation(0)">
                                 <template v-slot:append>
                                     <v-icon :color="getLocatorIconColor(0)">
                                         {{ getLocatorIcon(0) }}
@@ -41,17 +42,26 @@
                             </v-row>
                             <v-row>
                                 <v-col cols="12" sm="4">
-                                    <v-text-field type="number" id="radius" v-model="radius" outlined label="Search Area (m)" dense />
+                                    <v-text-field type="number" id="radius" v-model="radius" outlined
+                                        label="Search Area (m)" dense />
                                 </v-col>
                                 <v-col cols="12" sm="4">
-                                    <v-select v-model="travelMethod" :items="travelOptions" item-title="text" item-value="value"
-                                        label="Travel Method" outlined dense></v-select>
+                                    <v-select v-model="travelMethod" :items="travelOptions" item-title="text"
+                                        item-value="value" label="Travel Method" outlined dense></v-select>
                                 </v-col>
                                 <v-col cols="12" sm="4">
-                                    <v-select v-model="locationTypes" :items="locationOptions" item-title="text" item-value="value"
-                                        label="Location Type" outlined dense multiple/>
+                                    <v-select v-model="locationTypes" :items="locationOptions" item-title="text"
+                                        item-value="value" label="Location Type" outlined dense multiple />
                                 </v-col>
                             </v-row>
+                        </div>
+                    </v-expand-transition>
+                    <v-expand-transition>
+                        <div v-if="start" class="text-right">
+                            <v-btn color="success" @click="findMeetingPlaces()" :disabled="!start">
+                                <v-icon left>mdi-arrow-right</v-icon>
+                                Find Meeting Places
+                            </v-btn>
                         </div>
                     </v-expand-transition>
                 </v-card-text>
@@ -72,7 +82,9 @@ export default {
         return {
             zoom: 6,
             center: { lat: 54.0466045367799, lng: -1.8115606773446735 },
+            crowsCentre: null,
             dialogVisible: true,
+            resultPanelVisible: false,
             map: null,
             people: [
                 {
@@ -131,6 +143,9 @@ export default {
                 { text: 'Tourism', value: 'tourist_attraction' },
                 { text: 'Zoo', value: 'zoo' }
             ],
+            resultRoute: null,
+            directionsRenderer: null,
+            directionsService: null,
         };
     },
     components: {
@@ -170,7 +185,7 @@ export default {
                 return 'mdi-map-marker-remove';
             }
         },
-          async locateLocation(personIndex) {
+        async locateLocation(personIndex) {
             // grab out the person we're dealing with
             const person = this.people[personIndex];
             if (person) {
@@ -185,7 +200,6 @@ export default {
                     );
 
                     const { results } = response.data;
-                    console.log(results);
                     if (results.length > 0) {
                         const { lat, lng } = results[0].geometry.location;
                         person.lat = lat;
@@ -225,6 +239,158 @@ export default {
                 this.map.setZoom(maxZoom);
             }
         },
+        async findMeetingPlaces() {
+            this.dialogVisible = false;
+            try {
+                // find the routes - just take the first one for now
+                await this.findRoutes();
+                // calculate the midpoint of the route
+                await this.calculateMidpoint();
+                // show the meeting area and the locations we've found for it
+                this.showMeetingArea();
+                this.resultPanelVisible = true;
+            } catch (error) {
+                console.error("Error finding meeting places:", error);
+            }
+        },
+        async findRoutes() {
+            // do this in a promise, we can't find the middle until we have the route
+            return new Promise((resolve, reject) => {
+                // make a nw directions service
+                this.directionsService = new google.maps.DirectionsService();
+                // make a request with the people and the travel method
+                const request = {
+                    origin: { lat: this.people[0].lat, lng: this.people[0].lng },
+                    destination: { lat: this.people[1].lat, lng: this.people[1].lng },
+                    travelMode: this.travelMethod,
+                };
+
+                // whack the route on the map
+                this.directionsService.route(request, (result, status) => {
+                    if (status == google.maps.DirectionsStatus.OK) {
+                        this.resultRoute = result;
+                        // get a renderer and show the route
+                        this.directionsRenderer = new google.maps.DirectionsRenderer({
+                            suppressMarkers: true,
+                            suppressInfoWindows: true,
+                        });
+                        this.directionsRenderer.setMap(this.map);
+                        this.directionsRenderer.setDirections(result);
+                        // tell it we're done here
+                        resolve(result);
+                    } else {
+                        reject(new Error("Failed to find driving route"));
+                    }
+                });
+            });
+        },
+        async calculateMidpoint() {
+            // do it in a promise as we can't find the locations without the mid point
+            return new Promise((resolve) => {
+                // get the route we're using
+                const route = this.resultRoute.routes[0];
+                // calculate the total duration of the route, add up each leg and step
+                let totalDuration = 0;
+                route.legs.forEach(leg => {
+                    leg.steps.forEach(step => {
+                        totalDuration += step.duration.value;
+                    });
+                });
+
+                // find the halfway point
+                const halfwayDuration = totalDuration / 2;
+                let accumulatedDuration = 0;
+                let midpoint;
+                // run through the route again, adding up the duration until we reach the halfway point
+                for (const leg of route.legs) {
+                    for (const step of leg.steps) {
+                        accumulatedDuration += step.duration.value;
+                        if (accumulatedDuration >= halfwayDuration) {
+                            const fraction = (halfwayDuration - (accumulatedDuration - step.duration.value)) / step.duration.value;
+                            const polyline = google.maps.geometry.encoding.decodePath(step.polyline.points);
+                            const index = Math.floor(fraction * (polyline.length - 1));
+                            midpoint = polyline[index];
+                            break;
+                        }
+                    }
+                    // if we're there, break
+                    if (midpoint) break;
+                }
+                // note the point
+                this.crowsCentre = {
+                    lat: midpoint.lat(),
+                    lng: midpoint.lng(),
+                };
+                // we're done, crack on
+                resolve();
+            });
+        },
+        showMeetingArea() {
+            // show a circle around the crowsCentre using the input radius
+            this.placesPolygon = new google.maps.Circle({
+                strokeColor: "#333333",
+                strokeOpacity: 0.8,
+                strokeWeight: 1,
+                map: this.map,
+                center: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
+                radius: this.radius,
+                // Add shadow options
+                shadowColor: "#000000",
+                shadowOpacity: 0.3,
+                shadowRadius: 5,
+                shadowOffset: {
+                    width: 5,
+                    height: 5,
+                },
+            });
+            this.showMeetingPlaces();
+        },
+        showMeetingPlaces() {
+            this.$refs.mapRef.$mapPromise.then((map) => {
+                // fire up a new places service
+                const service = new google.maps.places.PlacesService(map);
+
+                // do a search using our midpoint and radius
+                service.nearbySearch(
+                    {
+                        location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
+                        radius: this.radius,
+                        type: [this.locationType],
+                    },
+                    (results, status) => {
+                        if (status === google.maps.places.PlacesServiceStatus.OK) {
+                            this.placesResults = results;
+                            console.log(results);
+                            // create a marker with each of them
+                            for (let i = 0; i < results.length; i++) {
+                                this.createMarker(results[i]);
+                            }
+                        }
+                    }
+                );
+            });
+        },
+        createMarker(place) {
+            // create a marker for the place with it's name
+            this.$refs.mapRef.$mapPromise.then((map) => {
+                const marker = new google.maps.Marker({
+                    position: place.geometry.location,
+                    map: map,
+                    title: place.name,
+                });
+
+                const infowindow = new google.maps.InfoWindow({
+                    content: place.name,
+                });
+
+                marker.addListener("click", () => {
+                    infowindow.open(map, marker);
+                });
+
+                this.placesMarkers.push(marker);
+
+            });
+        },
     },
     computed: {
         bothLocated() {
@@ -234,6 +400,13 @@ export default {
                 return false;
             }
         },
+        start() {
+            if (this.bothLocated && this.travelMethod && this.locationTypes && this.radius) {
+                return true;
+            } else {
+                return false;
+            }
+        }
     },
     // add a watcher to console log out the location Types every time the value changes
     watch: {
