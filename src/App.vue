@@ -1,19 +1,19 @@
 <template>
   <v-app>
     <v-main>
-      <HelloWorld/>
+      <MeetingMap/>
     </v-main>
   </v-app>
 </template>
 
 <script>
-import HelloWorld from './components/HelloWorld.vue'
+import MeetingMap from './components/MeetingMap.vue'
 
 export default {
   name: 'App',
 
   components: {
-    HelloWorld,
+    MeetingMap,
   },
 
   data: () => ({
