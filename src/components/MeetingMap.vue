@@ -1,76 +1,64 @@
 <template>
-    <v-dialog v-model="dialogVisible" class="custom-dialog" persistent>
-        <v-card class="mapSettings">
-            <v-card-title>Meeting Place</v-card-title>
+    <v-dialog v-model="editPerson" id="editPersonBox">
+        <v-card>
+            <v-card-title>Edit Person</v-card-title>
+            <v-card-subtitle>Enter the name and address of the person</v-card-subtitle>
+            <v-card-text>
+                <v-text-field v-model="editingPerson.name" label="Name"></v-text-field>
+                <v-text-field v-model="editingPerson.address" label="Address"></v-text-field>
+            </v-card-text>
             <v-card-actions>
-                <v-card-text>
-                    <v-card-subtitle>Let's start by find who's meeting</v-card-subtitle>
-                    <v-row>
-                        <v-col cols="12" sm="6">
-                            <v-text-field label="Where are you?" v-model="people[0].address" outlined
-                                @keyup.enter="locateLocation(0)">
-                                <template v-slot:append>
-                                    <v-icon :color="getLocatorIconColor(0)">
-                                        {{ getLocatorIcon(0) }}
-                                    </v-icon>
-                                    <v-btn icon @click="locateLocation(0)">
-                                        <v-icon>mdi-map-search</v-icon>
-                                    </v-btn>
-                                </template>
-                            </v-text-field>
-                        </v-col>
-                        <v-col cols="12" sm="6">
-                            <v-text-field label="Where are they?" v-model="people[1].address" outlined
-                                @keyup.enter="locateLocation(1)">
-                                <template v-slot:append>
-                                    <v-icon :color="getLocatorIconColor(1)">
-                                        {{ getLocatorIcon(1) }}
-                                    </v-icon>
-                                    <v-btn icon @click="locateLocation(1)">
-                                        <v-icon>mdi-map-search</v-icon>
-                                    </v-btn>
-                                </template>
-                            </v-text-field>
-                        </v-col>
-                    </v-row>
-                    <v-expand-transition>
-                        <div v-if="bothLocated">
-                            <v-row>
-                                <v-col cols="12">
-                                    <v-card-subtitle>What are we looking for?</v-card-subtitle>
-                                </v-col>
-                            </v-row>
-                            <v-row>
-                                <v-col cols="12" sm="4">
-                                    <v-text-field type="number" id="radius" v-model="radius" outlined
-                                        label="Search Area (m)" dense />
-                                </v-col>
-                                <v-col cols="12" sm="4">
-                                    <v-select v-model="travelMethod" :items="travelOptions" item-title="text"
-                                        item-value="value" label="Travel Method" outlined dense></v-select>
-                                </v-col>
-                                <v-col cols="12" sm="4">
-                                    <v-select v-model="locationTypes" :items="locationOptions" item-title="text"
-                                        item-value="value" label="Location Type" outlined dense multiple />
-                                </v-col>
-                            </v-row>
-                        </div>
-                    </v-expand-transition>
-                    <v-expand-transition>
-                        <div v-if="start" class="text-right">
-                            <v-btn color="success" @click="findMeetingPlaces()" :disabled="!start">
-                                <v-icon left>mdi-arrow-right</v-icon>
-                                Find Meeting Places
-                            </v-btn>
-                        </div>
-                    </v-expand-transition>
-                </v-card-text>
+                <v-btn color="success" @click="editPerson = false">Save</v-btn>
+                <v-btn color="error" @click="editPerson = false">Cancel</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>
-    <div id="map" style="height: 100%; width: 100%;"></div>
-</template>
+    <v-dialog v-model="peopleDialog" id="peopleBox">
+        <v-card>
+            <v-card-title>People</v-card-title>
+            <v-card-subtitle color="success" @click="addNewPerson()">Add New Person<v-icon
+                    color="success">mdi-plus</v-icon></v-card-subtitle>
+            <v-list lines="two">
+                <v-list-item v-for="person in people" :key="person.name">
+                    <template v-slot:prepend>
+                        <v-avatar color="grey-lighten-1">
+                            <v-icon color="white">mdi-account</v-icon>
+                        </v-avatar>
+                    </template>
+                    <div>
+                        <div @click="enableEdit(person)"><b>{{ person.name }}</b></div>
+                        <div @click="enableEdit(person)">{{ person.address }}</div>
+                    </div>
+                    <template v-slot:append>
+                        <v-btn color="success" icon="mdi-map-marker-plus" variant="text"></v-btn>
+                        <v-btn color="warning" icon="mdi-map-marker-minus" variant="text"></v-btn>
+                        <v-btn color="error" icon="mdi-delete" variant="text" @click="deletePerson(person)"></v-btn>
+                    </template>
+                    <v-divider></v-divider>
+                </v-list-item>
+            </v-list>
 
+        </v-card>
+    </v-dialog>
+    <div id="container">
+        <v-card id="options">
+            <v-container>
+                <v-row justify="center" align="center">
+                    <v-col cols="4" justify="center" align="center">
+                        <v-btn density="default" @click="this.peopleDialog = true">People</v-btn>
+                    </v-col>
+                    <v-col cols="4" justify="center" align="center">
+                        <v-btn density="default">Options</v-btn>
+                    </v-col>
+                    <v-col cols="4" justify="center" align="center">
+                        <v-btn density="default">Results</v-btn>
+                    </v-col>
+                </v-row>
+            </v-container>
+        </v-card>
+        <div id="map"></div>
+    </div>
+</template>
 <script>
 /* global google */
 import axios from 'axios';
@@ -83,20 +71,20 @@ export default {
             zoom: 6,
             center: { lat: 54.0466045367799, lng: -1.8115606773446735 },
             crowsCentre: null,
-            dialogVisible: true,
+            peopleDialog: false,
             resultPanelVisible: false,
             map: null,
             people: [
                 {
-                    name: "You",
-                    address: "",
+                    name: "Rosie",
+                    address: "address",
                     lat: 0,
                     lng: 0,
                     located: 'not-located'
                 },
                 {
-                    name: "Them",
-                    address: "",
+                    name: "Wren",
+                    address: "address",
                     lat: 0,
                     lng: 0,
                     located: 'not-located',
@@ -146,6 +134,7 @@ export default {
             resultRoute: null,
             directionsRenderer: null,
             directionsService: null,
+            editPerson: false,
         };
     },
     components: {
@@ -160,6 +149,26 @@ export default {
         });
     },
     methods: {
+        enableEdit(person) {
+            this.editPerson = true;
+            this.editingPerson = person;
+            console.log("Edit:", person);
+        },
+        addNewPerson() {
+            this.people.push({
+                name: "New Person",
+                address: "address",
+                lat: 0,
+                lng: 0,
+                located: 'not-located',
+            });
+        },
+        deletePerson(person) {
+            const index = this.people.indexOf(person);
+            if (index > -1) {
+                this.people.splice(index, 1);
+            }
+        },
         openDialog() {
             this.dialogVisible = true;
         },
@@ -421,12 +430,56 @@ export default {
 </script>
 
 <style scoped>
-.mapSettings {
-    overflow-y: hidden !important;
+#container {
+    position: relative;
+    height: 100%;
+    width: 100%;
 }
 
-.custom-dialog {
-    border: 1px solid #e0e0e0;
-    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+#options {
+    position: absolute;
+    z-index: 1;
+    width: 100%;
+    height: 8%;
+    align-items: center;
+    justify-content: center;
+    bottom: 0;
+    background-color: #7d86dd;
+}
+
+#map {
+    height: 100%;
+    width: 100%;
+}
+
+#peopleBox {
+    height: 50%;
+    z-index: 1;
+}
+
+#editPersonBox {
+    height: 50%;
+    z-index: 2;
+}
+
+@media (min-width: 768px) {
+    #peopleBox {
+        width: 50%;
+    }
+
+    #editPersonBox {
+        width: 50%;
+    }
+    
+}
+
+@media (max-width: 767px) {
+    #peopleBox {
+        width: 90%;
+    }
+
+    #editPersonBox {
+        width: 90%;
+    }
 }
 </style>
