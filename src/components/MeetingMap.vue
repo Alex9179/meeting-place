@@ -34,8 +34,10 @@
                         <div class="text-truncate" @click="enableEdit(person)">{{ person.address }}</div>
                     </div>
                     <template v-slot:append>
-                        <v-btn color="success" icon="mdi-map-marker-plus" variant="text" @click="addPersonToMap(person)" :disabled="person.markerVisible"></v-btn>
-                        <v-btn color="warning" icon="mdi-map-marker-minus" variant="text" @click="removePersonFromMap(person)" :disabled="!person.markerVisible"></v-btn>
+                        <v-btn color="success" icon="mdi-map-marker-plus" variant="text" @click="addPersonToMap(person)"
+                            :disabled="person.markerVisible"></v-btn>
+                        <v-btn color="warning" icon="mdi-map-marker-minus" variant="text"
+                            @click="removePersonFromMap(person)" :disabled="!person.markerVisible"></v-btn>
                         <v-btn color="error" icon="mdi-delete" variant="text" @click="deletePerson(person)"></v-btn>
                     </template>
                     <v-divider></v-divider>
@@ -44,17 +46,46 @@
         </v-card>
     </v-dialog>
     <div id="container">
-        <v-card id="options">
+        <v-slide-x-transition>
+            <v-card id="optionsButtons" elevation="0" v-if="optionsVisible" key="options">
+                <div class="d-flex align-center">
+                    <v-card-actions class="options-icons" @click="methodVisible = !methodVisible">
+                        <v-icon class="ml-1">mdi-train-car</v-icon>
+                    </v-card-actions>
+                    <v-select class="optionSelector" v-model="travelMethod" v-if="methodVisible" :items="travelOptions"
+                        label="Travel Method" outlined dense item-title="text" item-value="value"></v-select>
+                </div>
+                <div class="d-flex align-center">
+                    <v-card-actions class="options-icons" @click="radiusVisible = !radiusVisible">
+                        <v-icon class="ml-1">mdi-radius-outline</v-icon>
+                    </v-card-actions>
+                    <v-slider v-model="radius" label="Radius"  v-if="radiusVisible" min="1000" max="10000" step="1000" thumb-label thumb-size="20"
+                        ticks="always" tick-size="2" tick-thickness="2" tick-color="grey"></v-slider>
+                </div>
+                <div class="d-flex align-center">
+                    <v-card-actions class="options-icons" @click="locationTypeVisible = !locationTypeVisible">
+                        <v-icon class="ml-1">mdi-map-marker</v-icon>
+                    </v-card-actions>
+                    <v-select class="optionSelector" v-model="locationType" v-if="locationTypeVisible" :items="locationOptions"
+                        label="Location Type" outlined dense item-title="text" item-value="value"></v-select>
+                </div>
+
+            </v-card>
+        </v-slide-x-transition>
+        <v-card id="mapPanel">
             <v-container>
                 <v-row justify="center" align="center">
-                    <v-col cols="4" justify="center" align="center">
-                        <v-btn density="default" @click="this.peopleDialog = true">People</v-btn>
+                    <v-col cols="4" justify="center" align="center" class="panelButtons">
+                        <v-icon @click="peopleDialog = true">mdi-account-group</v-icon>
+                        <p>People</p>
                     </v-col>
-                    <v-col cols="4" justify="center" align="center">
-                        <v-btn density="default">Options</v-btn>
+                    <v-col cols="4" justify="center" align="center" class="panelButtons">
+                        <v-icon @click="optionsVisible = !optionsVisible">mdi-cog</v-icon>
+                        <p>Options</p>
                     </v-col>
-                    <v-col cols="4" justify="center" align="center">
-                        <v-btn density="default">Results</v-btn>
+                    <v-col cols="4" justify="center" align="center" class="panelButtons">
+                        <v-icon @click="resultPanelVisible = true">mdi-map-marker</v-icon>
+                        <p>Results</p>
                     </v-col>
                 </v-row>
             </v-container>
@@ -76,6 +107,10 @@ export default {
             crowsCentre: null,
             peopleDialog: false,
             resultPanelVisible: false,
+            optionsVisible: false,
+            methodVisible: false,
+            radiusVisible: false,
+            locationTypeVisible: false,
             map: null,
             people: [
                 {
@@ -182,7 +217,7 @@ export default {
 
     },
     methods: {
-        addPersonToMap(person){
+        addPersonToMap(person) {
             // see if they have a marker already, if they do, show it, if not, make one
             if (person.marker) {
                 person.marker.setVisible(true);
@@ -198,7 +233,7 @@ export default {
             person.markerVisible = true;
             this.zoomToPeople();
         },
-        removePersonFromMap(person){
+        removePersonFromMap(person) {
             // hide the marker from the map
             person.marker.setVisible(false);
             person.markerVisible = false;
@@ -240,13 +275,13 @@ export default {
         },
         deletePerson(person) {
             const index = this.people.indexOf(person);
-            if (index > -1) {                
+            if (index > -1) {
                 // Hide the marker from the map if it exists
                 if (person.marker) {
                     person.marker.setVisible(false);
                     person.marker.setMap(null);
                 }
-                
+
                 // Remove the person from the people array
                 this.people.splice(index, 1);
             }
@@ -525,7 +560,7 @@ export default {
     width: 100%;
 }
 
-#options {
+#mapPanel {
     position: absolute;
     z-index: 1;
     width: 100%;
@@ -551,6 +586,67 @@ export default {
     z-index: 2;
 }
 
+#optionsButtons {
+    position: absolute !important;
+    top: 120px;
+    margin-left: 15px;
+    z-index: 1;
+    left: 0;
+    background-color: transparent;
+}
+
+.panelButtons {
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    background-color: #7d86dd;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.panelButtons:hover {
+    background-color: #6c75c9;
+}
+
+.panelButtons:focus {
+    outline: none;
+}
+
+.panelButtons:active {
+    background-color: #5b63b3;
+}
+
+.panelButtons:hover {
+    background-color: #6c75c9;
+}
+
+.panelButtons:focus {
+    outline: none;
+}
+
+.panelButtons:active {
+    background-color: 7b63b3;
+}
+
+.optionSelector {
+    background-color: #6c75c9;
+    color: white;
+    border-radius: 4px;
+    margin-left: 10px;
+    height: 50px;
+    width: 200px;
+}
+
+.options-icons {
+    background-color: #7d86dd;
+    border-radius: 50%;
+    padding: 8px;
+    margin-bottom: 10px;
+    width: 50px;
+    height: 50px;
+}
+
 @media (min-width: 768px) {
     #peopleBox {
         width: 50%;
@@ -570,5 +666,11 @@ export default {
     #editPersonBox {
         width: 90%;
     }
+}
+
+.expanding-div {
+    background-color: lightblue;
+    padding: 20px;
+    margin-top: 20px;
 }
 </style>
