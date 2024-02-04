@@ -34,8 +34,8 @@
                         <div class="text-truncate" @click="enableEdit(person)">{{ person.address }}</div>
                     </div>
                     <template v-slot:append>
-                        <v-btn color="success" icon="mdi-map-marker-plus" variant="text"></v-btn>
-                        <v-btn color="warning" icon="mdi-map-marker-minus" variant="text"></v-btn>
+                        <v-btn color="success" icon="mdi-map-marker-plus" variant="text" @click="addPersonToMap(person)" :disabled="person.markerVisible"></v-btn>
+                        <v-btn color="warning" icon="mdi-map-marker-minus" variant="text" @click="removePersonFromMap(person)" :disabled="!person.markerVisible"></v-btn>
                         <v-btn color="error" icon="mdi-delete" variant="text" @click="deletePerson(person)"></v-btn>
                     </template>
                     <v-divider></v-divider>
@@ -83,11 +83,13 @@ export default {
                     address: "Your Address",
                     lat: 0,
                     lng: 0,
-                    located: 'not-located'
+                    located: 'not-located',
+                    marker: null,
+                    markerVisible: true,
+                    route: null,
                 },
             ],
             personMarkerSVG: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="25px" width="25px"><title>map-marker-check</title><path d="M12,2C15.86,2 19,5.14 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9C5,5.14 8.14,2 12,2M10.47,14L17,7.41L15.6,6L10.47,11.18L8.4,9.09L7,10.5L10.47,14Z" fill="green" /></svg>'),
-            peopleMarkers: [],
             radius: 5000,
             travelMethod: null,
             travelOptions: [
@@ -167,7 +169,7 @@ export default {
                         title: this.people[0].name,
                         icon: this.personMarkerSVG,
                     });
-                    this.peopleMarkers.push(marker);
+                    this.people[0].marker = marker;
                     this.zoomToPeople();
                 });
 
@@ -180,12 +182,36 @@ export default {
 
     },
     methods: {
-        saveEdit() {
+        addPersonToMap(person){
+            // see if they have a marker already, if they do, show it, if not, make one
+            if (person.marker) {
+                person.marker.setVisible(true);
+            } else {
+                const marker = new google.maps.Marker({
+                    position: { lat: person.lat, lng: person.lng },
+                    map: this.map,
+                    title: person.name,
+                    icon: this.personMarkerSVG,
+                });
+                person.marker = marker;
+            }
+            person.markerVisible = true;
+            this.zoomToPeople();
+        },
+        removePersonFromMap(person){
+            // hide the marker from the map
+            person.marker.setVisible(false);
+            person.markerVisible = false;
+            this.zoomToPeople();
+        },
+        async saveEdit() {
             this.editPerson = false;
             // compare the person to the edit copy, if they're different, locate them 
             if (JSON.stringify(this.editingPerson) !== JSON.stringify(this.personEditCopy)) {
                 this.editingPerson.located = 'not-located';
-                this.locateLocation(this.people.indexOf(this.editingPerson));
+                console.log(this.people.indexOf(this.editingPerson));
+                await this.locateLocation(this.people.indexOf(this.editingPerson));
+                console.log(this.people);
             }
         },
         enableEdit(person) {
@@ -202,6 +228,9 @@ export default {
                 lat: 0,
                 lng: 0,
                 located: 'not-located',
+                marker: null,
+                markerVisible: true,
+                route: null,
             });
             // then add the edit dialog for this person
             this.editPerson = true;
@@ -211,7 +240,14 @@ export default {
         },
         deletePerson(person) {
             const index = this.people.indexOf(person);
-            if (index > -1) {
+            if (index > -1) {                
+                // Hide the marker from the map if it exists
+                if (person.marker) {
+                    person.marker.setVisible(false);
+                    person.marker.setMap(null);
+                }
+                
+                // Remove the person from the people array
                 this.people.splice(index, 1);
             }
         },
@@ -243,6 +279,7 @@ export default {
         async locateLocation(personIndex) {
             // grab out the person we're dealing with
             const person = this.people[personIndex];
+            console.log(person);
             if (person) {
                 // say we're locating them
                 person.located = 'locating';
@@ -268,7 +305,7 @@ export default {
                             title: person.name,
                             icon: this.personMarkerSVG,
                         });
-                        this.peopleMarkers.push(marker);
+                        person.marker = marker;
                         this.zoomToPeople();
                     } else {
                         person.located = 'not-found';
@@ -462,11 +499,18 @@ export default {
             }
         }
     },
-    // add a watcher to console log out the location Types every time the value changes
     watch: {
-        locationTypes: {
-            handler: function (newVal) {
-                console.log("Location Types:", newVal);
+        // see if all people markers are set to false, reset map if they are
+        people: {
+            handler() {
+                if (this.people.every(person => person.markerVisible === false)) {
+                    // check if map is already at original zoom and center
+                    if (this.center && (this.map.getZoom() !== this.zoom || !this.map.getCenter().equals(new google.maps.LatLng(this.center.lat, this.center.lng)))) {
+                        // set map back to original zoom and center
+                        this.map.setCenter(new google.maps.LatLng(this.center.lat, this.center.lng));
+                        this.map.setZoom(this.zoom);
+                    }
+                }
             },
             deep: true,
         },
