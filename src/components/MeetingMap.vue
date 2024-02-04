@@ -8,14 +8,18 @@
                 <v-text-field v-model="editingPerson.address" label="Address"></v-text-field>
             </v-card-text>
             <v-card-actions>
-                <v-btn color="success" @click="editPerson = false">Save</v-btn>
+                <v-btn color="success" @click="saveEdit()">Save</v-btn>
                 <v-btn color="error" @click="editPerson = false">Cancel</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>
     <v-dialog v-model="peopleDialog" id="peopleBox">
         <v-card>
-            <v-card-title>People</v-card-title>
+            <v-toolbar dense class="mb-6">
+                <v-card-title class="mr-auto">People</v-card-title>
+                <v-spacer></v-spacer>
+                <v-icon class="mr-6" @click="peopleDialog = false">mdi-close</v-icon>
+            </v-toolbar>
             <v-card-subtitle color="success" @click="addNewPerson()">Add New Person<v-icon
                     color="success">mdi-plus</v-icon></v-card-subtitle>
             <v-list lines="two">
@@ -26,8 +30,8 @@
                         </v-avatar>
                     </template>
                     <div>
-                        <div @click="enableEdit(person)"><b>{{ person.name }}</b></div>
-                        <div @click="enableEdit(person)">{{ person.address }}</div>
+                        <div class="text-truncate" @click="enableEdit(person)"><b>{{ person.name }}</b></div>
+                        <div class="text-truncate" @click="enableEdit(person)">{{ person.address }}</div>
                     </div>
                     <template v-slot:append>
                         <v-btn color="success" icon="mdi-map-marker-plus" variant="text"></v-btn>
@@ -37,7 +41,6 @@
                     <v-divider></v-divider>
                 </v-list-item>
             </v-list>
-
         </v-card>
     </v-dialog>
     <div id="container">
@@ -76,18 +79,11 @@ export default {
             map: null,
             people: [
                 {
-                    name: "Rosie",
-                    address: "address",
+                    name: "You",
+                    address: "Your Address",
                     lat: 0,
                     lng: 0,
                     located: 'not-located'
-                },
-                {
-                    name: "Wren",
-                    address: "address",
-                    lat: 0,
-                    lng: 0,
-                    located: 'not-located',
                 },
             ],
             personMarkerSVG: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="25px" width="25px"><title>map-marker-check</title><path d="M12,2C15.86,2 19,5.14 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9C5,5.14 8.14,2 12,2M10.47,14L17,7.41L15.6,6L10.47,11.18L8.4,9.09L7,10.5L10.47,14Z" fill="green" /></svg>'),
@@ -135,6 +131,9 @@ export default {
             directionsRenderer: null,
             directionsService: null,
             editPerson: false,
+            editingPerson: null,
+            editingPersonindex: null,
+            personEditCopy: null,
         };
     },
     components: {
@@ -147,21 +146,68 @@ export default {
             center: this.center,
             zoom: this.zoom,
         });
+
+        // Get the user's location
+        if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(function (position) {
+                // set this to the first person location
+                this.people[0].lat = position.coords.latitude;
+                this.people[0].lng = position.coords.longitude;
+
+                // then reverse geocode it to get the address
+                axios.get(
+                    `https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.coords.latitude},${position.coords.longitude}&key=${process.env.VUE_APP_GOOGLE_MAPS_API_KEY}`
+                ).then((response) => {
+                    this.people[0].address = response.data.results[0].formatted_address;
+                    this.people[0].located = 'found';
+                    // add them to the map
+                    const marker = new google.maps.Marker({
+                        position: { lat: this.people[0].lat, lng: this.people[0].lng },
+                        map: this.map,
+                        title: this.people[0].name,
+                        icon: this.personMarkerSVG,
+                    });
+                    this.peopleMarkers.push(marker);
+                    this.zoomToPeople();
+                });
+
+            }.bind(this), function (error) {
+                console.error("Error Code = " + error.code + " - " + error.message);
+            });
+        } else {
+            console.log("Geolocation is not supported by this browser.");
+        }
+
     },
     methods: {
+        saveEdit() {
+            this.editPerson = false;
+            // compare the person to the edit copy, if they're different, locate them 
+            if (JSON.stringify(this.editingPerson) !== JSON.stringify(this.personEditCopy)) {
+                this.editingPerson.located = 'not-located';
+                this.locateLocation(this.people.indexOf(this.editingPerson));
+            }
+        },
         enableEdit(person) {
             this.editPerson = true;
             this.editingPerson = person;
-            console.log("Edit:", person);
+            // set the personEditCopy as a non reactive copy of the person
+            this.personEditCopy = JSON.parse(JSON.stringify(person));
+
         },
         addNewPerson() {
             this.people.push({
-                name: "New Person",
-                address: "address",
+                name: "",
+                address: "",
                 lat: 0,
                 lng: 0,
                 located: 'not-located',
             });
+            // then add the edit dialog for this person
+            this.editPerson = true;
+            this.editingPerson = this.people[this.people.length - 1];
+            this.personEditCopy = JSON.parse(JSON.stringify(this.people[this.people.length - 1]));
+
         },
         deletePerson(person) {
             const index = this.people.indexOf(person);
@@ -369,7 +415,6 @@ export default {
                     (results, status) => {
                         if (status === google.maps.places.PlacesServiceStatus.OK) {
                             this.placesResults = results;
-                            console.log(results);
                             // create a marker with each of them
                             for (let i = 0; i < results.length; i++) {
                                 this.createMarker(results[i]);
@@ -470,7 +515,7 @@ export default {
     #editPersonBox {
         width: 50%;
     }
-    
+
 }
 
 @media (max-width: 767px) {
