@@ -4,11 +4,14 @@
             <v-card-title>Edit Person</v-card-title>
             <v-card-subtitle>Enter the name and address of the person</v-card-subtitle>
             <v-card-text>
-                <v-text-field v-model="editingPerson.name" label="Name" :rules="[v => !!v || 'Name is required']"></v-text-field>
-                <v-text-field v-model="editingPerson.address" label="Address" :rules="[v => !!v || 'Address is required']"></v-text-field>
+                <v-text-field v-model="editingPerson.name" label="Name"
+                    :rules="[v => !!v || 'Name is required']"></v-text-field>
+                <v-text-field v-model="editingPerson.address" label="Address"
+                    :rules="[v => !!v || 'Address is required']"></v-text-field>
             </v-card-text>
             <v-card-actions>
-                <v-btn color="success" @click="saveEdit()" :disabled="!editingPerson.name || !editingPerson.address">Save</v-btn>
+                <v-btn color="success" @click="saveEdit()"
+                    :disabled="!editingPerson.name || !editingPerson.address">Save</v-btn>
                 <v-btn color="error" @click="cancelEdit()">Cancel</v-btn>
             </v-card-actions>
         </v-card>
@@ -49,29 +52,39 @@
         <v-slide-x-transition>
             <v-card id="optionsButtons" elevation="0" v-if="optionsVisible" key="options">
                 <div class="d-flex align-center">
-                    <v-card-actions class="options-icons" @click="methodVisible = !methodVisible">
+                    <v-card-actions class="options-icons" @click="toggleVisible('methodVisible')">
                         <v-icon class="ml-1">mdi-train-car</v-icon>
                     </v-card-actions>
-                    <v-select class="optionSelector" v-model="travelMethod" v-if="methodVisible" :items="travelOptions"
-                        label="Travel Method" outlined dense item-title="text" item-value="value"></v-select>
+                    <v-card-actions>
+                        <v-select class="optionSelector" v-model="travelMethod" v-if="methodVisible" :items="travelOptions"
+                            label="Travel Method" outlined dense item-title="text" item-value="value"></v-select>
+                    </v-card-actions>
                 </div>
                 <div class="d-flex align-center">
-                    <v-card-actions class="options-icons" @click="radiusVisible = !radiusVisible">
+                    <v-card-actions class="options-icons" @click="toggleVisible('radiusVisible')">
                         <v-icon class="ml-1">mdi-radius-outline</v-icon>
                     </v-card-actions>
-                    <v-slider v-model="radius" label="Radius" v-if="radiusVisible" min="1000" max="10000" step="1000"
-                        thumb-label thumb-size="20" ticks="always" tick-size="2" tick-thickness="2"
-                        tick-color="grey"></v-slider>
+                    <v-card-actions>
+                        <v-slider v-model="radius" label="Radius" v-if="radiusVisible" min="100" max="10000" step="10"
+                            thumb-label thumb-size="20" :ticks="['always']" tick-size="2" tick-thickness="2"
+                            class="optionSelector" tick-color="grey"></v-slider>
+                    </v-card-actions>
                 </div>
                 <div class="d-flex align-center">
-                    <v-card-actions class="options-icons" @click="locationTypeVisible = !locationTypeVisible">
+                    <v-card-actions class="options-icons" @click="toggleVisible('locationTypeVisible')">
                         <v-icon class="ml-1">mdi-map-marker</v-icon>
                     </v-card-actions>
-                    <v-select class="optionSelector" v-model="locationType" v-if="locationTypeVisible"
-                        :items="locationOptions" label="Location Type" outlined dense item-title="text"
-                        item-value="value"></v-select>
+                    <v-card-actions>
+                        <v-select class="optionSelector" v-model="locationTypes" v-if="locationTypeVisible"
+                            :items="locationOptions" label="Location Type" outlined dense item-title="text"
+                            item-value="value" multiple></v-select>
+                    </v-card-actions>
                 </div>
-
+                <div class="d-flex align-center">
+                    <v-card-actions class="options-icons" @click="findRoutes(this.midpointMarker)">
+                        <v-icon class="ml-1">mdi-arrow-right-bold</v-icon>
+                    </v-card-actions>
+                   </div>
             </v-card>
         </v-slide-x-transition>
         <v-card id="mapPanel">
@@ -79,16 +92,16 @@
                 <v-row justify="center" align="center">
                     <v-col cols="4" justify="center" align="center" class="panelButtons" @click="peopleDialog = true">
                         <v-icon>mdi-account-group</v-icon>
-                        <p>People</p>
+                        <p>Who?</p>
                     </v-col>
                     <v-col cols="4" justify="center" align="center" class="panelButtons"
                         @click="optionsVisible = !optionsVisible">
-                        <v-icon>mdi-cog</v-icon>
-                        <p>Options</p>
+                        <v-icon>mdi-tune-variant</v-icon>
+                        <p>How?</p>
                     </v-col>
                     <v-col cols="4" justify="center" align="center" class="panelButtons" @click="resultPanelVisible = true">
                         <v-icon>mdi-map-marker</v-icon>
-                        <p>Results</p>
+                        <p>Where!</p>
                     </v-col>
                 </v-row>
             </v-container>
@@ -124,10 +137,13 @@ export default {
                     located: 'not-located',
                     marker: null,
                     markerVisible: true,
+                    directions: null,
                     route: null,
+                    colour: 'blue',
                 },
             ],
-            personMarkerSVG: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="25px" width="25px"><title>map-marker-check</title><path d="M12,2C15.86,2 19,5.14 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9C5,5.14 8.14,2 12,2M10.47,14L17,7.41L15.6,6L10.47,11.18L8.4,9.09L7,10.5L10.47,14Z" fill="green" /></svg>'),
+            personMarkerSVG: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="50px" width="50px"><title>map-marker-check</title><path d="M12,2C15.86,2 19,5.14 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9C5,5.14 8.14,2 12,2M10.47,14L17,7.41L15.6,6L10.47,11.18L8.4,9.09L7,10.5L10.47,14Z" fill="black" /></svg>'),
+            crowMarkerSVG: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="50px" width="50px"><title>bullseye</title><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z" fill="red"/></svg>'),
             radius: 5000,
             travelMethod: null,
             travelOptions: [
@@ -220,6 +236,21 @@ export default {
 
     },
     methods: {
+        toggleVisible(flag) {
+            if (flag === 'methodVisible') {
+                this.methodVisible = true;
+                this.radiusVisible = false;
+                this.locationTypeVisible = false;
+            } else if (flag === 'radiusVisible') {
+                this.methodVisible = false;
+                this.radiusVisible = true;
+                this.locationTypeVisible = false;
+            } else if (flag === 'locationTypeVisible') {
+                this.methodVisible = false;
+                this.radiusVisible = false;
+                this.locationTypeVisible = true;
+            }
+        },
         cancelEdit() {
             this.editPerson = false;
             // if they've canceled, and either name or address is empty, rmeove the person
@@ -289,7 +320,9 @@ export default {
                 located: 'not-located',
                 marker: null,
                 markerVisible: true,
+                directions: null,
                 route: null,
+                colour: 'blue',
             });
             // then add the edit dialog for this person
             this.editPerson = true;
@@ -324,28 +357,6 @@ export default {
         openDialog() {
             this.dialogVisible = true;
         },
-        getLocatorIconColor(personIndex) {
-            if (this.people[personIndex].located === 'not-located') {
-                return 'grey';
-            } else if (this.people[personIndex].located === 'locating') {
-                return 'orange';
-            } else if (this.people[personIndex].located === 'found') {
-                return 'green';
-            } else if (this.people[personIndex].located === 'not-found') {
-                return 'red';
-            }
-        },
-        getLocatorIcon(personIndex) {
-            if (this.people[personIndex].located === 'not-located') {
-                return 'mdi-map-marker-question';
-            } else if (this.people[personIndex].located === 'locating') {
-                return 'mdi-map-marker-question';
-            } else if (this.people[personIndex].located === 'found') {
-                return 'mdi-map-marker-check';
-            } else if (this.people[personIndex].located === 'not-found') {
-                return 'mdi-map-marker-remove';
-            }
-        },
         async locateLocation(personIndex) {
             // grab out the person we're dealing with
             const person = this.people[personIndex];
@@ -367,12 +378,17 @@ export default {
                         person.lng = lng;
                         person.located = 'found';
 
+                        // replace the fill colour set as 'fill="black"' in the SVG with the person's colour
+                        const personMarkerSVG = this.personMarkerSVG.replace('fill="black"', `fill="${person.colour}"`);
+
+                        console.log(personMarkerSVG);
+
                         // add them to the map
                         const marker = new google.maps.Marker({
                             position: { lat: person.lat, lng: person.lng },
                             map: this.map,
                             title: person.name,
-                            icon: this.personMarkerSVG,
+                            icon: personMarkerSVG,
                         });
                         person.marker = marker;
                         this.zoomToPeople();
@@ -415,35 +431,56 @@ export default {
                 console.error("Error finding meeting places:", error);
             }
         },
-        async findRoutes() {
-            // do this in a promise, we can't find the middle until we have the route
+        async findRoutes(marker) {
             return new Promise((resolve, reject) => {
-                // make a nw directions service
+                // make a new directions service
                 this.directionsService = new google.maps.DirectionsService();
-                // make a request with the people and the travel method
-                const request = {
-                    origin: { lat: this.people[0].lat, lng: this.people[0].lng },
-                    destination: { lat: this.people[1].lat, lng: this.people[1].lng },
-                    travelMode: this.travelMethod,
-                };
 
-                // whack the route on the map
-                this.directionsService.route(request, (result, status) => {
-                    if (status == google.maps.DirectionsStatus.OK) {
-                        this.resultRoute = result;
-                        // get a renderer and show the route
-                        this.directionsRenderer = new google.maps.DirectionsRenderer({
-                            suppressMarkers: true,
-                            suppressInfoWindows: true,
-                        });
-                        this.directionsRenderer.setMap(this.map);
-                        this.directionsRenderer.setDirections(result);
-                        // tell it we're done here
-                        resolve(result);
-                    } else {
-                        reject(new Error("Failed to find driving route"));
+                // loop through each person in this.people
+                const promises = this.people.map(person => {
+                    // remove any previous route and directions
+                    person.route = null;
+                    if (person.directionsRenderer) {
+                        person.directionsRenderer.setMap(null);
+                        person.directionsRenderer = null;
                     }
+
+                    // make a request with the person's location and the marker's location
+                    const request = {
+                        origin: { lat: person.lat, lng: person.lng },
+                        destination: { lat: marker.getPosition().lat(), lng: marker.getPosition().lng() },
+                        travelMode: this.travelMethod,
+                    };
+
+                    // return a promise for each request
+                    return new Promise((resolve, reject) => {
+                        // whack the route on the map
+                        this.directionsService.route(request, (result, status) => {
+                            if (status == google.maps.DirectionsStatus.OK) {
+                                // add the route and directions to the person object
+                                person.route = result;
+                                person.directionsRenderer = new google.maps.DirectionsRenderer({
+                                    suppressMarkers: true,
+                                    suppressInfoWindows: true,
+                                });
+                                person.directionsRenderer.setMap(this.map);
+                                person.directionsRenderer.setDirections(result);
+                                resolve();
+                            } else {
+                                reject(new Error("Failed to find driving route"));
+                            }
+                        });
+                    });
                 });
+
+                // wait for all promises to resolve
+                Promise.all(promises)
+                    .then(() => {
+                        resolve();
+                    })
+                    .catch(error => {
+                        reject(error);
+                    });
             });
         },
         calculateMidpoint() {
@@ -484,6 +521,11 @@ export default {
                         position: this.crowsCentre,
                         map: this.map,
                         title: 'Midpoint',
+                        icon: {
+                            url: this.crowMarkerSVG,
+                            anchor: new google.maps.Point(25, 25),
+                        },
+                        draggable: true,
                     });
                     this.midpointMarker = marker;
                 }
@@ -630,6 +672,7 @@ export default {
     background-color: transparent;
 }
 
+
 .panelButtons {
     padding: 10px;
     border: none;
@@ -670,7 +713,11 @@ export default {
     border-radius: 4px;
     margin-left: 10px;
     height: 50px;
-    width: 200px;
+    width: 250px;
+    margin-left: 10px;
+    margin-right: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
 }
 
 .options-icons {
@@ -707,5 +754,4 @@ export default {
     background-color: lightblue;
     padding: 20px;
     margin-top: 20px;
-}
-</style>
+}</style>
