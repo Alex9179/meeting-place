@@ -4,12 +4,12 @@
             <v-card-title>Edit Person</v-card-title>
             <v-card-subtitle>Enter the name and address of the person</v-card-subtitle>
             <v-card-text>
-                <v-text-field v-model="editingPerson.name" label="Name"></v-text-field>
-                <v-text-field v-model="editingPerson.address" label="Address"></v-text-field>
+                <v-text-field v-model="editingPerson.name" label="Name" :rules="[v => !!v || 'Name is required']"></v-text-field>
+                <v-text-field v-model="editingPerson.address" label="Address" :rules="[v => !!v || 'Address is required']"></v-text-field>
             </v-card-text>
             <v-card-actions>
-                <v-btn color="success" @click="saveEdit()">Save</v-btn>
-                <v-btn color="error" @click="editPerson = false">Cancel</v-btn>
+                <v-btn color="success" @click="saveEdit()" :disabled="!editingPerson.name || !editingPerson.address">Save</v-btn>
+                <v-btn color="error" @click="cancelEdit()">Cancel</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>
@@ -59,15 +59,17 @@
                     <v-card-actions class="options-icons" @click="radiusVisible = !radiusVisible">
                         <v-icon class="ml-1">mdi-radius-outline</v-icon>
                     </v-card-actions>
-                    <v-slider v-model="radius" label="Radius"  v-if="radiusVisible" min="1000" max="10000" step="1000" thumb-label thumb-size="20"
-                        ticks="always" tick-size="2" tick-thickness="2" tick-color="grey"></v-slider>
+                    <v-slider v-model="radius" label="Radius" v-if="radiusVisible" min="1000" max="10000" step="1000"
+                        thumb-label thumb-size="20" ticks="always" tick-size="2" tick-thickness="2"
+                        tick-color="grey"></v-slider>
                 </div>
                 <div class="d-flex align-center">
                     <v-card-actions class="options-icons" @click="locationTypeVisible = !locationTypeVisible">
                         <v-icon class="ml-1">mdi-map-marker</v-icon>
                     </v-card-actions>
-                    <v-select class="optionSelector" v-model="locationType" v-if="locationTypeVisible" :items="locationOptions"
-                        label="Location Type" outlined dense item-title="text" item-value="value"></v-select>
+                    <v-select class="optionSelector" v-model="locationType" v-if="locationTypeVisible"
+                        :items="locationOptions" label="Location Type" outlined dense item-title="text"
+                        item-value="value"></v-select>
                 </div>
 
             </v-card>
@@ -75,16 +77,17 @@
         <v-card id="mapPanel">
             <v-container>
                 <v-row justify="center" align="center">
-                    <v-col cols="4" justify="center" align="center" class="panelButtons">
-                        <v-icon @click="peopleDialog = true">mdi-account-group</v-icon>
+                    <v-col cols="4" justify="center" align="center" class="panelButtons" @click="peopleDialog = true">
+                        <v-icon>mdi-account-group</v-icon>
                         <p>People</p>
                     </v-col>
-                    <v-col cols="4" justify="center" align="center" class="panelButtons">
-                        <v-icon @click="optionsVisible = !optionsVisible">mdi-cog</v-icon>
+                    <v-col cols="4" justify="center" align="center" class="panelButtons"
+                        @click="optionsVisible = !optionsVisible">
+                        <v-icon>mdi-cog</v-icon>
                         <p>Options</p>
                     </v-col>
-                    <v-col cols="4" justify="center" align="center" class="panelButtons">
-                        <v-icon @click="resultPanelVisible = true">mdi-map-marker</v-icon>
+                    <v-col cols="4" justify="center" align="center" class="panelButtons" @click="resultPanelVisible = true">
+                        <v-icon>mdi-map-marker</v-icon>
                         <p>Results</p>
                     </v-col>
                 </v-row>
@@ -217,6 +220,13 @@ export default {
 
     },
     methods: {
+        cancelEdit() {
+            this.editPerson = false;
+            // if they've canceled, and either name or address is empty, rmeove the person
+            if (!this.editingPerson.name || !this.editingPerson.address) {
+                this.deletePerson(this.editingPerson);
+            }
+        },
         addPersonToMap(person) {
             // see if they have a marker already, if they do, show it, if not, make one
             if (person.marker) {
@@ -232,28 +242,42 @@ export default {
             }
             person.markerVisible = true;
             this.zoomToPeople();
+            this.calculateMidpoint();
         },
         removePersonFromMap(person) {
             // hide the marker from the map
             person.marker.setVisible(false);
             person.markerVisible = false;
             this.zoomToPeople();
+
+            // if there's only one person left, hide the midpoint
+            if (this.people.filter(person => person.markerVisible === true).length < 2 && this.midpointMarker) {
+                this.midpointMarker.setVisible(false);
+            }
+            this.calculateMidpoint();
         },
         async saveEdit() {
             this.editPerson = false;
             // compare the person to the edit copy, if they're different, locate them 
-            if (JSON.stringify(this.editingPerson) !== JSON.stringify(this.personEditCopy)) {
+            if (
+                this.editingPerson.name !== this.personEditCopy.name ||
+                this.editingPerson.address !== this.personEditCopy.address
+            ) {
                 this.editingPerson.located = 'not-located';
-                console.log(this.people.indexOf(this.editingPerson));
                 await this.locateLocation(this.people.indexOf(this.editingPerson));
-                console.log(this.people);
+
             }
         },
         enableEdit(person) {
             this.editPerson = true;
             this.editingPerson = person;
             // set the personEditCopy as a non reactive copy of the person
-            this.personEditCopy = JSON.parse(JSON.stringify(person));
+            this.personEditCopy = {
+                name: person.name,
+                address: person.address,
+                located: person.located
+            };
+            console.log(this.personEditCopy);
 
         },
         addNewPerson() {
@@ -270,7 +294,11 @@ export default {
             // then add the edit dialog for this person
             this.editPerson = true;
             this.editingPerson = this.people[this.people.length - 1];
-            this.personEditCopy = JSON.parse(JSON.stringify(this.people[this.people.length - 1]));
+            this.personEditCopy = {
+                name: this.editingPerson.name,
+                address: this.editingPerson.address,
+                located: this.editingPerson.located
+            };
 
         },
         deletePerson(person) {
@@ -280,10 +308,17 @@ export default {
                 if (person.marker) {
                     person.marker.setVisible(false);
                     person.marker.setMap(null);
+                    this.marker = null;
                 }
 
                 // Remove the person from the people array
                 this.people.splice(index, 1);
+                this.zoomToPeople();
+
+                // if there's only one person left, hide the midpoint
+                if (this.people.filter(person => person.markerVisible === true).length < 2 && this.midpointMarker) {
+                    this.midpointMarker.setVisible(false);
+                }
             }
         },
         openDialog() {
@@ -314,7 +349,6 @@ export default {
         async locateLocation(personIndex) {
             // grab out the person we're dealing with
             const person = this.people[personIndex];
-            console.log(person);
             if (person) {
                 // say we're locating them
                 person.located = 'locating';
@@ -342,6 +376,7 @@ export default {
                         });
                         person.marker = marker;
                         this.zoomToPeople();
+                        this.calculateMidpoint();
                     } else {
                         person.located = 'not-found';
                         console.log("No results found");
@@ -354,7 +389,7 @@ export default {
         zoomToPeople() {
             const bounds = new google.maps.LatLngBounds();
             this.people.forEach(person => {
-                if (person.located === 'found') {
+                if (person.markerVisible === true) {
                     bounds.extend({ lat: person.lat, lng: person.lng });
                 }
             });
@@ -372,7 +407,7 @@ export default {
                 // find the routes - just take the first one for now
                 await this.findRoutes();
                 // calculate the midpoint of the route
-                await this.calculateMidpoint();
+                this.calculateMidpoint();
                 // show the meeting area and the locations we've found for it
                 this.showMeetingArea();
                 this.resultPanelVisible = true;
@@ -411,46 +446,48 @@ export default {
                 });
             });
         },
-        async calculateMidpoint() {
-            // do it in a promise as we can't find the locations without the mid point
-            return new Promise((resolve) => {
-                // get the route we're using
-                const route = this.resultRoute.routes[0];
-                // calculate the total duration of the route, add up each leg and step
-                let totalDuration = 0;
-                route.legs.forEach(leg => {
-                    leg.steps.forEach(step => {
-                        totalDuration += step.duration.value;
-                    });
-                });
+        calculateMidpoint() {
+            // calculate the average latitude and longitude
+            const latitudes = this.people
+                .filter(person => person.marker && person.markerVisible === true)
+                .map(person => person.lat);
+            const longitudes = this.people
+                .filter(person => person.marker && person.markerVisible === true)
+                .map(person => person.lng);
+            const averageLatitude = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
+            const averageLongitude = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
 
-                // find the halfway point
-                const halfwayDuration = totalDuration / 2;
-                let accumulatedDuration = 0;
-                let midpoint;
-                // run through the route again, adding up the duration until we reach the halfway point
-                for (const leg of route.legs) {
-                    for (const step of leg.steps) {
-                        accumulatedDuration += step.duration.value;
-                        if (accumulatedDuration >= halfwayDuration) {
-                            const fraction = (halfwayDuration - (accumulatedDuration - step.duration.value)) / step.duration.value;
-                            const polyline = google.maps.geometry.encoding.decodePath(step.polyline.points);
-                            const index = Math.floor(fraction * (polyline.length - 1));
-                            midpoint = polyline[index];
-                            break;
-                        }
-                    }
-                    // if we're there, break
-                    if (midpoint) break;
+            // check if the average latitude and longitude are valid numbers
+            if (isNaN(averageLatitude) || isNaN(averageLongitude)) {
+                console.error("Invalid average latitude or longitude");
+                return;
+            }
+
+            // set the midpoint as the crowsCentre
+            this.crowsCentre = {
+                lat: averageLatitude,
+                lng: averageLongitude,
+            };
+
+            // check there is at least 2 people in this.people with a visible marker
+            if (this.people.filter(person => person.markerVisible === true).length > 1) {
+
+                // check if there's already a midpointMarker
+                if (this.midpointMarker) {
+                    // move the existing midpointMarker to the new position
+                    this.midpointMarker.setPosition(this.crowsCentre);
+                    // make sure it's visible
+                    this.midpointMarker.setVisible(true);
+                } else {
+                    // create a new midpointMarker
+                    const marker = new google.maps.Marker({
+                        position: this.crowsCentre,
+                        map: this.map,
+                        title: 'Midpoint',
+                    });
+                    this.midpointMarker = marker;
                 }
-                // note the point
-                this.crowsCentre = {
-                    lat: midpoint.lat(),
-                    lng: midpoint.lng(),
-                };
-                // we're done, crack on
-                resolve();
-            });
+            }
         },
         showMeetingArea() {
             // show a circle around the crowsCentre using the input radius
@@ -535,13 +572,10 @@ export default {
         }
     },
     watch: {
-        // see if all people markers are set to false, reset map if they are
         people: {
             handler() {
                 if (this.people.every(person => person.markerVisible === false)) {
-                    // check if map is already at original zoom and center
                     if (this.center && (this.map.getZoom() !== this.zoom || !this.map.getCenter().equals(new google.maps.LatLng(this.center.lat, this.center.lng)))) {
-                        // set map back to original zoom and center
                         this.map.setCenter(new google.maps.LatLng(this.center.lat, this.center.lng));
                         this.map.setZoom(this.zoom);
                     }
@@ -550,6 +584,7 @@ export default {
             deep: true,
         },
     },
+
 };
 </script>
 
