@@ -48,6 +48,22 @@
             </v-list>
         </v-card>
     </v-dialog>
+    <v-dialog v-model="resultPanelVisible">
+        <v-card>
+            <v-card-title>Meeting Places</v-card-title>
+            <v-card-subtitle>Places within the radius of the midpoint</v-card-subtitle>
+            <v-card-text>
+                <v-list>
+                    <v-list-item v-for="place in placesResults" :key="place.name">
+                        <v-list-item-content>
+                            <v-list-item-title>{{ place.name }}</v-list-item-title>
+                            <v-list-item-subtitle>{{ place.vicinity }}</v-list-item-subtitle>
+                        </v-list-item-content>
+                    </v-list-item>
+                </v-list>
+            </v-card-text>
+        </v-card>
+    </v-dialog>
     <div id="container">
         <v-slide-x-transition>
             <v-card id="optionsButtons" elevation="0" v-if="optionsVisible" key="options">
@@ -56,8 +72,9 @@
                         <v-icon class="ml-1">mdi-train-car</v-icon>
                     </v-card-actions>
                     <v-card-actions>
-                        <v-select class="optionSelector" v-model="travelMethod" v-if="methodVisible" :items="travelOptions"
-                            label="Travel Method" outlined dense item-title="text" item-value="value"></v-select>
+                        <v-select class="optionSelector" v-model="travelMethod" v-if="methodVisible"
+                            :items="travelOptions" label="Travel Method" outlined dense item-title="text"
+                            item-value="value"></v-select>
                     </v-card-actions>
                 </div>
                 <div class="d-flex align-center">
@@ -81,10 +98,10 @@
                     </v-card-actions>
                 </div>
                 <div class="d-flex align-center">
-                    <v-card-actions class="options-icons" @click="findRoutes(this.midpointMarker)">
+                    <v-card-actions class="options-icons" @click="showMeetingPlaces()">
                         <v-icon class="ml-1">mdi-arrow-right-bold</v-icon>
                     </v-card-actions>
-                   </div>
+                </div>
             </v-card>
         </v-slide-x-transition>
         <v-card id="mapPanel">
@@ -99,13 +116,38 @@
                         <v-icon>mdi-tune-variant</v-icon>
                         <p>How?</p>
                     </v-col>
-                    <v-col cols="4" justify="center" align="center" class="panelButtons" @click="resultPanelVisible = true">
-                        <v-icon>mdi-map-marker</v-icon>
+                    <v-col cols="4" justify="center" align="center" class="panelButtons"
+                        @click="resultPanelVisible = true">
+                        <v-badge color="red" overlap v-if="resultCount > 0">
+                            <template v-slot:badge>
+                                <span class="badge-content">{{ resultCount }}</span>
+                            </template>
+                            <v-icon>mdi-map-marker</v-icon>
+                        </v-badge>
+                        <v-icon v-else>mdi-map-marker</v-icon>
                         <p>Where!</p>
                     </v-col>
                 </v-row>
             </v-container>
         </v-card>
+        <div v-if="showPlaceInfo" class="place-info-container">
+            <v-card class="place-info">
+                <v-row>
+                    <v-col cols="3">
+                        <v-img :src="selectedMarker.photos[0].getUrl()" width="50" height="50"
+                            style="object-fit: cover;"></v-img>
+                    </v-col>
+                    <v-col cols="7">
+                        <p>{{ selectedMarker.name }}</p>
+                        <v-rating v-model="selectedMarker.rating" :half-increments="true" :readonly="true" density="compact"
+                            ></v-rating>
+                    </v-col>
+                    <v-col cols="2">
+                            <v-icon>mdi-arrow-right</v-icon>
+                    </v-col>
+                </v-row>
+            </v-card>
+        </div>
         <div id="map"></div>
     </div>
 </template>
@@ -190,6 +232,10 @@ export default {
             editingPerson: null,
             editingPersonindex: null,
             personEditCopy: null,
+            placesMarkers: [],
+            placesResults: [],
+            showPlaceInfo: false,
+            selectedMarker: null,
         };
     },
     components: {
@@ -201,6 +247,9 @@ export default {
         this.map = new google.maps.Map(document.getElementById('map'), {
             center: this.center,
             zoom: this.zoom,
+            disableDefaultUI: true,
+            zoomControl: false,
+            mapTypeControl: false,
         });
 
         // Get the user's location
@@ -417,20 +466,6 @@ export default {
                 this.map.setZoom(maxZoom);
             }
         },
-        async findMeetingPlaces() {
-            this.dialogVisible = false;
-            try {
-                // find the routes - just take the first one for now
-                await this.findRoutes();
-                // calculate the midpoint of the route
-                this.calculateMidpoint();
-                // show the meeting area and the locations we've found for it
-                this.showMeetingArea();
-                this.resultPanelVisible = true;
-            } catch (error) {
-                console.error("Error finding meeting places:", error);
-            }
-        },
         async findRoutes(marker) {
             return new Promise((resolve, reject) => {
                 // make a new directions service
@@ -529,6 +564,8 @@ export default {
                     });
                     this.midpointMarker = marker;
                 }
+
+                this.showMeetingArea();
             }
         },
         showMeetingArea() {
@@ -549,55 +586,58 @@ export default {
                     height: 5,
                 },
             });
-            this.showMeetingPlaces();
+            //this.showMeetingPlaces();
         },
         showMeetingPlaces() {
-            this.$refs.mapRef.$mapPromise.then((map) => {
-                // fire up a new places service
-                const service = new google.maps.places.PlacesService(map);
+            // fire up a new places service
+            const service = new google.maps.places.PlacesService(this.map);
 
-                // do a search using our midpoint and radius
-                service.nearbySearch(
-                    {
-                        location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
-                        radius: this.radius,
-                        type: [this.locationType],
-                    },
-                    (results, status) => {
-                        if (status === google.maps.places.PlacesServiceStatus.OK) {
-                            this.placesResults = results;
-                            // create a marker with each of them
-                            for (let i = 0; i < results.length; i++) {
-                                this.createMarker(results[i]);
-                            }
+            // do a search using our midpoint and radius
+            service.nearbySearch(
+                {
+                    location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
+                    radius: this.radius,
+                    type: [this.locationTypes],
+                },
+                (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+                        this.placesResults = results;
+                        console.log(results);
+                        // create a marker with each of them
+                        for (let i = 0; i < results.length; i++) {
+                            this.createMarker(results[i]);
                         }
                     }
-                );
-            });
+                }
+            );
         },
         createMarker(place) {
-            // create a marker for the place with it's name
-            this.$refs.mapRef.$mapPromise.then((map) => {
-                const marker = new google.maps.Marker({
-                    position: place.geometry.location,
-                    map: map,
-                    title: place.name,
-                });
-
-                const infowindow = new google.maps.InfoWindow({
-                    content: place.name,
-                });
-
-                marker.addListener("click", () => {
-                    infowindow.open(map, marker);
-                });
-
-                this.placesMarkers.push(marker);
-
+            // create a marker for each place
+            const marker = new google.maps.Marker({
+                map: this.map,
+                position: place.geometry.location,
+                title: place.name,
+                icon: {
+                    url: place.icon,
+                    scaledSize: new google.maps.Size(25, 25),
+                },
             });
+
+            // add a click listener to the marker
+            marker.addListener("click", () => {
+                this.selectedMarker = place;
+                console.log(place);
+                this.showPlaceInfo = true;
+            });
+
+            // add the marker to the placesMarkers array
+            this.placesMarkers.push(marker);
         },
     },
     computed: {
+        resultCount() {
+            return this.placesResults.length;
+        },
         bothLocated() {
             if (this.people.every(person => person.located === 'found')) {
                 return true;
@@ -625,8 +665,12 @@ export default {
             },
             deep: true,
         },
+        radius(newRadius) {
+            if (this.placesPolygon) {
+                this.placesPolygon.setRadius(newRadius);
+            }
+        },
     },
-
 };
 </script>
 
@@ -665,7 +709,7 @@ export default {
 
 #optionsButtons {
     position: absolute !important;
-    top: 120px;
+    top: 200px;
     margin-left: 15px;
     z-index: 1;
     left: 0;
@@ -754,4 +798,112 @@ export default {
     background-color: lightblue;
     padding: 20px;
     margin-top: 20px;
-}</style>
+}
+
+
+<style>#optionsButtons {
+    position: absolute !important;
+    top: 200px;
+    margin-left: 15px;
+    z-index: 1;
+    left: 0;
+    background-color: transparent;
+}
+
+.panelButtons {
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    background-color: #7d86dd;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.panelButtons:hover {
+    background-color: #6c75c9;
+}
+
+.panelButtons:focus {
+    outline: none;
+}
+
+.panelButtons:active {
+    background-color: #5b63b3;
+}
+
+.panelButtons:hover {
+    background-color: #6c75c9;
+}
+
+.panelButtons:focus {
+    outline: none;
+}
+
+.panelButtons:active {
+    background-color: 7b63b3;
+}
+
+.optionSelector {
+    background-color: #6c75c9;
+    color: white;
+    border-radius: 4px;
+    margin-left: 10px;
+    height: 50px;
+    width: 250px;
+    margin-left: 10px;
+    margin-right: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.options-icons {
+    background-color: #7d86dd;
+    border-radius: 50%;
+    padding: 8px;
+    margin-bottom: 10px;
+    width: 50px;
+    height: 50px;
+}
+
+@media (min-width: 768px) {
+    #peopleBox {
+        width: 50%;
+    }
+
+    #editPersonBox {
+        width: 50%;
+    }
+
+}
+
+@media (max-width: 767px) {
+    #peopleBox {
+        width: 90%;
+    }
+
+    #editPersonBox {
+        width: 90%;
+    }
+}
+
+.expanding-div {
+    background-color: lightblue;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.place-info {
+    position: absolute !important;
+    z-index: 1;
+    transform: translateX(-50%);
+    width: 90%;
+    height: 75px;
+    margin: 10px;
+    left: 50%;
+    top: 0;
+    right: 0;
+    margin-left: auto;
+    margin-right: auto;
+}
+</style>
