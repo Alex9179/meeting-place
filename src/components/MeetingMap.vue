@@ -8,6 +8,9 @@
                     :rules="[v => !!v || 'Name is required']"></v-text-field>
                 <v-text-field v-model="editingPerson.address" label="Address"
                     :rules="[v => !!v || 'Address is required']"></v-text-field>
+                <v-select v-model="editingPerson.travelMethod" :items="travelOptions" label="Travel Method" outlined
+                    dense item-title="text" item-value="value">
+                </v-select>
             </v-card-text>
             <v-card-actions>
                 <v-btn color="success" @click="saveEdit()"
@@ -61,74 +64,63 @@
                         </v-list-item-content>
                     </v-list-item>
                 </v-list>
+
             </v-card-text>
         </v-card>
     </v-dialog>
+    <v-dialog v-model="showSettingsDialog">
+        <v-card>
+            <v-icon class="ml-auto pa-2" @click="showSettingsDialog = false" size="20">mdi-close</v-icon>
+            <v-card-actions v-if="radiusVisible">
+                <v-slider v-model="radius" label="Search Radius" min="100" max="10000" step="10" thumb-label
+                    thumb-size="20" :ticks="['always']" tick-size="2" tick-thickness="2" tick-color="grey"></v-slider>
+            </v-card-actions>
+            <v-card-actions v-if="locationTypeVisible">
+                <v-select v-model="locationTypes" :items="locationOptions" label="Location Type" outlined dense
+                    item-title="text" item-value="value" multiple></v-select>
+            </v-card-actions>
+        </v-card>
+    </v-dialog>
     <div id="container">
-        <v-slide-x-transition>
-            <v-card id="optionsButtons" elevation="0" v-if="optionsVisible" key="options">
-                <div class="d-flex align-center">
-                    <v-card-actions class="options-icons" @click="toggleVisible('methodVisible')">
-                        <v-icon class="ml-1">mdi-train-car</v-icon>
-                    </v-card-actions>
-                    <v-card-actions>
-                        <v-select class="optionSelector" v-model="travelMethod" v-if="methodVisible"
-                            :items="travelOptions" label="Travel Method" outlined dense item-title="text"
-                            item-value="value"></v-select>
-                    </v-card-actions>
-                </div>
-                <div class="d-flex align-center">
-                    <v-card-actions class="options-icons" @click="toggleVisible('radiusVisible')">
-                        <v-icon class="ml-1">mdi-radius-outline</v-icon>
-                    </v-card-actions>
-                    <v-card-actions>
-                        <v-slider v-model="radius" label="Radius" v-if="radiusVisible" min="100" max="10000" step="10"
-                            thumb-label thumb-size="20" :ticks="['always']" tick-size="2" tick-thickness="2"
-                            class="optionSelector" tick-color="grey"></v-slider>
-                    </v-card-actions>
-                </div>
-                <div class="d-flex align-center">
-                    <v-card-actions class="options-icons" @click="toggleVisible('locationTypeVisible')">
-                        <v-icon class="ml-1">mdi-map-marker</v-icon>
-                    </v-card-actions>
-                    <v-card-actions>
-                        <v-select class="optionSelector" v-model="locationTypes" v-if="locationTypeVisible"
-                            :items="locationOptions" label="Location Type" outlined dense item-title="text"
-                            item-value="value" multiple></v-select>
-                    </v-card-actions>
-                </div>
-                <div class="d-flex align-center">
-                    <v-card-actions class="options-icons" @click="showMeetingPlaces()">
-                        <v-icon class="ml-1">mdi-arrow-right-bold</v-icon>
-                    </v-card-actions>
-                </div>
-            </v-card>
-        </v-slide-x-transition>
+        <v-snackbar v-model="snackbar" :timeout="snackbarTimeout" top>
+            {{ snackbarText }}
+            <template v-slot:action="{ attrs }">
+                <v-btn color="blue" text v-bind="attrs" @click="snackbar = false">
+                    Close
+                </v-btn>
+            </template>
+        </v-snackbar>
         <v-card id="mapPanel">
-            <v-container>
-                <v-row justify="center" align="center">
-                    <v-col cols="4" justify="center" align="center" class="panelButtons" @click="peopleDialog = true">
-                        <v-icon>mdi-account-group</v-icon>
-                        <p>Who?</p>
-                    </v-col>
-                    <v-col cols="4" justify="center" align="center" class="panelButtons"
-                        @click="optionsVisible = !optionsVisible">
-                        <v-icon>mdi-tune-variant</v-icon>
-                        <p>How?</p>
-                    </v-col>
-                    <v-col cols="4" justify="center" align="center" class="panelButtons"
-                        @click="resultPanelVisible = true">
-                        <v-badge color="red" overlap v-if="resultCount > 0">
-                            <template v-slot:badge>
-                                <span class="badge-content">{{ resultCount }}</span>
-                            </template>
-                            <v-icon>mdi-map-marker</v-icon>
-                        </v-badge>
-                        <v-icon v-else>mdi-map-marker</v-icon>
-                        <p>Where!</p>
-                    </v-col>
-                </v-row>
-            </v-container>
+            <v-row justify="center" align="center" height="30" >
+                <v-col cols="6" justify="center" align="center" class="panelButtons"
+                    @click="toggleVisible('radiusVisible')">
+                    Radius: {{ radius }}
+                </v-col>
+                <v-col cols="6" justify="center" align="center" class="panelButtons"
+                    @click="toggleVisible('locationTypeVisible')">
+                    Type Choices: {{ LocationTypeCount }}
+                </v-col>
+            </v-row>
+            <v-row justify="center" align="center" height="70">
+                <v-col cols="4" justify="center" align="center" class="panelButtons" @click="peopleDialog = true">
+                    <v-icon>mdi-account-group</v-icon>
+                    <p>Who?</p>
+                </v-col>
+                <v-col cols="4" justify="center" align="center" class="panelButtons" @click="showMeetingPlaces()">
+                    <v-icon>mdi-map-search</v-icon>
+                    <p>Search</p>
+                </v-col>
+                <v-col cols="4" justify="center" align="center" class="panelButtons" @click="showResultsPanel()">
+                    <v-badge color="red" overlap v-if="resultCount > 0">
+                        <template v-slot:badge>
+                            <span class="badge-content">{{ resultCount }}</span>
+                        </template>
+                        <v-icon>mdi-map-marker</v-icon>
+                    </v-badge>
+                    <v-icon v-else>mdi-map-marker</v-icon>
+                    <p>Results</p>
+                </v-col>
+            </v-row>
         </v-card>
         <div v-if="showPlaceInfo" class="place-info-container">
             <v-card class="place-info">
@@ -139,11 +131,11 @@
                     </v-col>
                     <v-col cols="7">
                         <p>{{ selectedMarker.name }}</p>
-                        <v-rating v-model="selectedMarker.rating" :half-increments="true" :readonly="true" density="compact"
-                            ></v-rating>
+                        <v-rating v-model="selectedMarker.rating" :half-increments="true" :readonly="true"
+                            density="compact"></v-rating>
                     </v-col>
                     <v-col cols="2">
-                            <v-icon>mdi-arrow-right</v-icon>
+                        <v-icon>mdi-arrow-right</v-icon>
                     </v-col>
                 </v-row>
             </v-card>
@@ -166,7 +158,6 @@ export default {
             peopleDialog: false,
             resultPanelVisible: false,
             optionsVisible: false,
-            methodVisible: false,
             radiusVisible: false,
             locationTypeVisible: false,
             map: null,
@@ -177,6 +168,7 @@ export default {
                     lat: 0,
                     lng: 0,
                     located: 'not-located',
+                    travelMethod: 'DRIVING',
                     marker: null,
                     markerVisible: true,
                     directions: null,
@@ -187,14 +179,14 @@ export default {
             personMarkerSVG: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="50px" width="50px"><title>map-marker-check</title><path d="M12,2C15.86,2 19,5.14 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9C5,5.14 8.14,2 12,2M10.47,14L17,7.41L15.6,6L10.47,11.18L8.4,9.09L7,10.5L10.47,14Z" fill="black" /></svg>'),
             crowMarkerSVG: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="50px" width="50px"><title>bullseye</title><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z" fill="red"/></svg>'),
             radius: 5000,
-            travelMethod: null,
+            travelMethod: { text: 'Driving', value: 'DRIVING' },
             travelOptions: [
                 { text: 'Driving', value: 'DRIVING' },
                 { text: 'Walking', value: 'WALKING' },
                 { text: 'Bicycling', value: 'BICYCLING' },
                 { text: 'Public Transport', value: 'TRANSIT' },
             ],
-            locationTypes: null,
+            locationTypes: [{ text: 'Cafe', value: 'cafe' }],
             locationOptions: [
                 { text: 'Theme Park', value: 'amusement_park' },
                 { text: 'Aquarium', value: 'aquarium' },
@@ -236,6 +228,10 @@ export default {
             placesResults: [],
             showPlaceInfo: false,
             selectedMarker: null,
+            showSettingsDialog: false,
+            snackbar: false,
+            snackbarText: '',
+            snackbarTimeout: 3000,
         };
     },
     components: {
@@ -285,20 +281,18 @@ export default {
 
     },
     methods: {
-        toggleVisible(flag) {
-            if (flag === 'methodVisible') {
-                this.methodVisible = true;
-                this.radiusVisible = false;
-                this.locationTypeVisible = false;
-            } else if (flag === 'radiusVisible') {
-                this.methodVisible = false;
-                this.radiusVisible = true;
-                this.locationTypeVisible = false;
-            } else if (flag === 'locationTypeVisible') {
-                this.methodVisible = false;
-                this.radiusVisible = false;
-                this.locationTypeVisible = true;
+        showResultsPanel() {
+            if(this.placesResults.length > 0){
+                this.resultPanelVisible = true;
+            } else {
+                this.snackbarText = 'Please search for places first';
+                this.snackbar = true;
             }
+        },
+        toggleVisible(flag) {
+            this.showSettingsDialog = !this.showSettingsDialog;
+            this.radiusVisible = flag === 'radiusVisible';
+            this.locationTypeVisible = flag === 'locationTypeVisible';
         },
         cancelEdit() {
             this.editPerson = false;
@@ -357,8 +351,6 @@ export default {
                 address: person.address,
                 located: person.located
             };
-            console.log(this.personEditCopy);
-
         },
         addNewPerson() {
             this.people.push({
@@ -367,6 +359,7 @@ export default {
                 lat: 0,
                 lng: 0,
                 located: 'not-located',
+                travelMethod: 'DRIVING',
                 marker: null,
                 markerVisible: true,
                 directions: null,
@@ -429,8 +422,6 @@ export default {
 
                         // replace the fill colour set as 'fill="black"' in the SVG with the person's colour
                         const personMarkerSVG = this.personMarkerSVG.replace('fill="black"', `fill="${person.colour}"`);
-
-                        console.log(personMarkerSVG);
 
                         // add them to the map
                         const marker = new google.maps.Marker({
@@ -562,6 +553,12 @@ export default {
                         },
                         draggable: true,
                     });
+
+                    // shift the polygon when the marker is dragged
+                    marker.addListener('dragend', () => {
+                        this.placesPolygon.setCenter({ lat: marker.getPosition().lat(), lng: marker.getPosition().lng() });
+                    });
+
                     this.midpointMarker = marker;
                 }
 
@@ -586,30 +583,34 @@ export default {
                     height: 5,
                 },
             });
-            //this.showMeetingPlaces();
         },
         showMeetingPlaces() {
-            // fire up a new places service
-            const service = new google.maps.places.PlacesService(this.map);
+            if (this.peopleCount > 1) {
+                // fire up a new places service
+                const service = new google.maps.places.PlacesService(this.map);
 
-            // do a search using our midpoint and radius
-            service.nearbySearch(
-                {
-                    location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
-                    radius: this.radius,
-                    type: [this.locationTypes],
-                },
-                (results, status) => {
-                    if (status === google.maps.places.PlacesServiceStatus.OK) {
-                        this.placesResults = results;
-                        console.log(results);
-                        // create a marker with each of them
-                        for (let i = 0; i < results.length; i++) {
-                            this.createMarker(results[i]);
+                // do a search using our midpoint and radius
+                service.nearbySearch(
+                    {
+                        location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
+                        radius: this.radius,
+                        type: [this.locationTypes],
+                    },
+                    (results, status) => {
+                        if (status === google.maps.places.PlacesServiceStatus.OK) {
+                            this.placesResults = results;
+                            // create a marker with each of them
+                            for (let i = 0; i < results.length; i++) {
+                                this.createMarker(results[i]);
+                            }
                         }
                     }
-                }
-            );
+                );
+            } else {
+                // do a vuetify snackbar here
+                this.snackbarText = 'Please add at least 2 people to the map';
+                this.snackbar = true;
+            }
         },
         createMarker(place) {
             // create a marker for each place
@@ -626,7 +627,6 @@ export default {
             // add a click listener to the marker
             marker.addListener("click", () => {
                 this.selectedMarker = place;
-                console.log(place);
                 this.showPlaceInfo = true;
             });
 
@@ -635,8 +635,21 @@ export default {
         },
     },
     computed: {
+        peopleCount() {
+            return this.people.length;
+        },
         resultCount() {
             return this.placesResults.length;
+        },
+        noResults() {
+            if (this.resultCount === 0) {
+                return true;
+            } else {
+                return false;
+            }
+        },
+        LocationTypeCount() {
+            return this.locationTypes.length;
         },
         bothLocated() {
             if (this.people.every(person => person.located === 'found')) {
@@ -685,11 +698,13 @@ export default {
     position: absolute;
     z-index: 1;
     width: 100%;
-    height: 8%;
+    height: 15%;
     align-items: center;
     justify-content: center;
     bottom: 0;
-    background-color: #7d86dd;
+    background-color: #62636b;
+    border-radius: 0;
+    padding: 10px;
 }
 
 #map {
@@ -703,7 +718,7 @@ export default {
 }
 
 #editPersonBox {
-    height: 50%;
+    height: 70%;
     z-index: 2;
 }
 
@@ -721,14 +736,14 @@ export default {
     padding: 10px;
     border: none;
     border-radius: 4px;
-    background-color: #7d86dd;
+    background-color: #62636b;
     color: white;
     cursor: pointer;
     transition: background-color 0.3s ease;
 }
 
 .panelButtons:hover {
-    background-color: #6c75c9;
+    background-color: #62636b;
 }
 
 .panelButtons:focus {
@@ -736,11 +751,11 @@ export default {
 }
 
 .panelButtons:active {
-    background-color: #5b63b3;
+    background-color: #62636b;
 }
 
 .panelButtons:hover {
-    background-color: #6c75c9;
+    background-color: #62636b;
 }
 
 .panelButtons:focus {
@@ -752,7 +767,7 @@ export default {
 }
 
 .optionSelector {
-    background-color: #6c75c9;
+    background-color: #62636b;
     color: white;
     border-radius: 4px;
     margin-left: 10px;
@@ -765,7 +780,7 @@ export default {
 }
 
 .options-icons {
-    background-color: #7d86dd;
+    background-color: #62636b;
     border-radius: 50%;
     padding: 8px;
     margin-bottom: 10px;
@@ -801,7 +816,7 @@ export default {
 }
 
 
-<style>#optionsButtons {
+#optionsButtons {
     position: absolute !important;
     top: 200px;
     margin-left: 15px;
@@ -814,14 +829,14 @@ export default {
     padding: 10px;
     border: none;
     border-radius: 4px;
-    background-color: #7d86dd;
+    background-color: #62636b;
     color: white;
     cursor: pointer;
     transition: background-color 0.3s ease;
 }
 
 .panelButtons:hover {
-    background-color: #6c75c9;
+    background-color: #62636b;
 }
 
 .panelButtons:focus {
@@ -829,11 +844,11 @@ export default {
 }
 
 .panelButtons:active {
-    background-color: #5b63b3;
+    background-color: #62636b;
 }
 
 .panelButtons:hover {
-    background-color: #6c75c9;
+    background-color: #62636b;
 }
 
 .panelButtons:focus {
@@ -845,7 +860,7 @@ export default {
 }
 
 .optionSelector {
-    background-color: #6c75c9;
+    background-color: #62636b;
     color: white;
     border-radius: 4px;
     margin-left: 10px;
@@ -858,7 +873,7 @@ export default {
 }
 
 .options-icons {
-    background-color: #7d86dd;
+    background-color: #62636b;
     border-radius: 50%;
     padding: 8px;
     margin-bottom: 10px;
