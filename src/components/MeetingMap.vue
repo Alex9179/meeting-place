@@ -58,10 +58,8 @@
             <v-card-text>
                 <v-list>
                     <v-list-item v-for="place in placesResults" :key="place.name">
-                        <v-list-item-content>
-                            <v-list-item-title>{{ place.name }}</v-list-item-title>
-                            <v-list-item-subtitle>{{ place.vicinity }}</v-list-item-subtitle>
-                        </v-list-item-content>
+                        <v-list-item-title>{{ place.name }}</v-list-item-title>
+                        <v-list-item-subtitle>{{ place.vicinity }}</v-list-item-subtitle>
                     </v-list-item>
                 </v-list>
 
@@ -81,67 +79,87 @@
             </v-card-actions>
         </v-card>
     </v-dialog>
-    <div id="container">
-        <v-snackbar v-model="snackbar" :timeout="snackbarTimeout" top>
-            {{ snackbarText }}
-            <template v-slot:action="{ attrs }">
-                <v-btn color="blue" text v-bind="attrs" @click="snackbar = false">
-                    Close
-                </v-btn>
-            </template>
-        </v-snackbar>
-        <v-card id="mapPanel">
-            <v-row justify="center" align="center" height="30" >
-                <v-col cols="6" justify="center" align="center" class="panelButtons"
-                    @click="toggleVisible('radiusVisible')">
-                    Radius: {{ radius }}
-                </v-col>
-                <v-col cols="6" justify="center" align="center" class="panelButtons"
-                    @click="toggleVisible('locationTypeVisible')">
-                    Type Choices: {{ LocationTypeCount }}
-                </v-col>
-            </v-row>
-            <v-row justify="center" align="center" height="70">
-                <v-col cols="4" justify="center" align="center" class="panelButtons" @click="peopleDialog = true">
-                    <v-icon>mdi-account-group</v-icon>
-                    <p>Who?</p>
-                </v-col>
-                <v-col cols="4" justify="center" align="center" class="panelButtons" @click="showMeetingPlaces()">
-                    <v-icon>mdi-map-search</v-icon>
-                    <p>Search</p>
-                </v-col>
-                <v-col cols="4" justify="center" align="center" class="panelButtons" @click="showResultsPanel()">
-                    <v-badge color="red" overlap v-if="resultCount > 0">
-                        <template v-slot:badge>
-                            <span class="badge-content">{{ resultCount }}</span>
-                        </template>
-                        <v-icon>mdi-map-marker</v-icon>
-                    </v-badge>
-                    <v-icon v-else>mdi-map-marker</v-icon>
-                    <p>Results</p>
-                </v-col>
-            </v-row>
-        </v-card>
-        <div v-if="showPlaceInfo" class="place-info-container">
-            <v-card class="place-info">
-                <v-row>
-                    <v-col cols="3">
-                        <v-img :src="selectedMarker.photos[0].getUrl()" width="50" height="50"
-                            style="object-fit: cover;"></v-img>
-                    </v-col>
-                    <v-col cols="7">
-                        <p>{{ selectedMarker.name }}</p>
-                        <v-rating v-model="selectedMarker.rating" :half-increments="true" :readonly="true"
-                            density="compact"></v-rating>
-                    </v-col>
-                    <v-col cols="2">
-                        <v-icon>mdi-arrow-right</v-icon>
-                    </v-col>
-                </v-row>
-            </v-card>
-        </div>
-        <div id="map"></div>
-    </div>
+    <v-container fluid class="fill-height">
+        <v-row class="flex-container">
+            <v-col cols="12" class="map-container">
+
+                <v-snackbar v-model="snackbar" :timeout="snackbarTimeout" top>
+                    {{ snackbarText }}
+                    <template v-slot:action="{ attrs }">
+                        <v-btn color="blue" text v-bind="attrs" @click="snackbar = false">
+                            Close
+                        </v-btn>
+                    </template>
+                </v-snackbar>
+                <div id="map"></div>
+            </v-col>
+            <v-col cols="12" class="buttons-container">
+                <v-card id="mapPanel">
+                    <v-row justify="center" align="center" height="30">
+                        <v-col cols="6" justify="center" align="center" class="panelButtons"
+                            @click="toggleVisible('radiusVisible')">
+                            Radius: {{ smartRadius }}
+                        </v-col>
+                        <v-col cols="6" justify="center" align="center" class="panelButtons"
+                            @click="toggleVisible('locationTypeVisible')">
+                            Type Choices: {{ LocationTypeCount }}
+                        </v-col>
+                    </v-row>
+                    <v-row justify="center" align="center" height="70">
+                        <v-col cols="4" justify="center" align="center" class="panelButtons"
+                            @click="peopleDialog = true">
+                            <div style="border-right: 1px solid lightgrey;">
+                                <v-icon>mdi-account-group</v-icon>
+                                <p>People</p>
+                            </div>
+                        </v-col>
+                        <v-col cols="4" justify="center" align="center" class="panelButtons"
+                            @click="showMeetingPlaces()">
+                            <div>
+                                <v-icon>mdi-map-search</v-icon>
+                                <p>Search</p>
+                            </div>
+                        </v-col>
+                        <v-col cols="4" justify="center" align="center" class="panelButtons"
+                            @click="resultPanelVisible = true">
+                            <div style="border-left: 1px solid lightgrey;">
+                                <v-badge color="red" overlap v-if="resultCount > 0">
+                                    <template v-slot:badge>
+                                        <span class="badge-content">{{ resultCount }}</span>
+                                    </template>
+                                    <v-icon>mdi-map-marker</v-icon>
+                                </v-badge>
+                                <v-icon v-else>mdi-map-marker</v-icon>
+                                <p>Results</p>
+                            </div>
+                        </v-col>
+                    </v-row>
+                </v-card>
+                <v-card class="place-info" v-if="showPlaceInfo">
+                    <v-row>
+                        <v-col cols="2">
+                            <v-img src="https://via.placeholder.com/50" :fill="true" class="info-img"></v-img>
+                        </v-col>
+                        <v-col cols="8">
+                            <p>{{ selectedMarker.name }}</p>
+                            <v-rating v-model="selectedMarker.rating" :half-increments="true" :readonly="true"
+                                density="compact" color="warning"></v-rating>
+                        </v-col>
+                        <v-col cols="2" id="info-arrow" @click="findRoutes()">
+                            <v-icon>mdi-arrow-right</v-icon>
+                        </v-col>
+                    </v-row>
+                    <div class="results-container" v-if="routesFound">
+                        <div class="person-details" v-for="(person, index) in people" :key="index">
+                            <span>{{ person.name }}</span>
+                            <span>{{ person.route.routes[0].legs[0].duration.text }} </span>
+                            <span>{{ person.route.routes[0].legs[0].distance.text }}</span>
+                        </div>
+                    </div>
+                </v-card>
+            </v-col>
+        </v-row>
+    </v-container>
 </template>
 <script>
 /* global google */
@@ -172,6 +190,7 @@ export default {
                     marker: null,
                     markerVisible: true,
                     directions: null,
+                    routeRenderer: null,
                     route: null,
                     colour: 'blue',
                 },
@@ -220,6 +239,7 @@ export default {
             resultRoute: null,
             directionsRenderer: null,
             directionsService: null,
+            placesService: null,
             editPerson: false,
             editingPerson: null,
             editingPersonindex: null,
@@ -227,7 +247,11 @@ export default {
             placesMarkers: [],
             placesResults: [],
             showPlaceInfo: false,
-            selectedMarker: null,
+            selectedMarker: {
+                name: 'Example Name',
+                rating: 3.5,
+                photos: [],
+            },
             showSettingsDialog: false,
             snackbar: false,
             snackbarText: '',
@@ -282,7 +306,7 @@ export default {
     },
     methods: {
         showResultsPanel() {
-            if(this.placesResults.length > 0){
+            if (this.placesResults.length > 0) {
                 this.resultPanelVisible = true;
             } else {
                 this.snackbarText = 'Please search for places first';
@@ -363,6 +387,7 @@ export default {
                 marker: null,
                 markerVisible: true,
                 directions: null,
+                routeRenderer: null,
                 route: null,
                 colour: 'blue',
             });
@@ -457,57 +482,38 @@ export default {
                 this.map.setZoom(maxZoom);
             }
         },
-        async findRoutes(marker) {
-            return new Promise((resolve, reject) => {
-                // make a new directions service
+        // find the routes from each person to the selected place
+        findRoutes() {
+            // see if we've got a router already, if not make one
+            if (!this.directionsService) {
                 this.directionsService = new google.maps.DirectionsService();
+            }
 
-                // loop through each person in this.people
-                const promises = this.people.map(person => {
-                    // remove any previous route and directions
-                    person.route = null;
-                    if (person.directionsRenderer) {
-                        person.directionsRenderer.setMap(null);
-                        person.directionsRenderer = null;
-                    }
-
-                    // make a request with the person's location and the marker's location
+            // run through each person and find the route, make them a route renderer and show it
+            this.people.forEach(person => {
+                if (person.located === 'found') {
                     const request = {
                         origin: { lat: person.lat, lng: person.lng },
-                        destination: { lat: marker.getPosition().lat(), lng: marker.getPosition().lng() },
-                        travelMode: this.travelMethod,
+                        destination: { lat: this.selectedMarker.geometry.location.lat(), lng: this.selectedMarker.geometry.location.lng() },
+                        travelMode: person.travelMethod,
                     };
 
-                    // return a promise for each request
-                    return new Promise((resolve, reject) => {
-                        // whack the route on the map
-                        this.directionsService.route(request, (result, status) => {
-                            if (status == google.maps.DirectionsStatus.OK) {
-                                // add the route and directions to the person object
-                                person.route = result;
-                                person.directionsRenderer = new google.maps.DirectionsRenderer({
-                                    suppressMarkers: true,
-                                    suppressInfoWindows: true,
-                                });
-                                person.directionsRenderer.setMap(this.map);
-                                person.directionsRenderer.setDirections(result);
-                                resolve();
-                            } else {
-                                reject(new Error("Failed to find driving route"));
+                    this.directionsService.route(request, (result, status) => {
+                        if (status === 'OK') {
+                            if (person.routeRenderer) {
+                                person.routeRenderer.setMap(null);
                             }
-                        });
+                            person.route = result;
+                            person.routeRenderer = new google.maps.DirectionsRenderer({
+                                map: this.map,
+                                directions: result,
+                                suppressMarkers: true,
+                            });
+                        }
                     });
-                });
-
-                // wait for all promises to resolve
-                Promise.all(promises)
-                    .then(() => {
-                        resolve();
-                    })
-                    .catch(error => {
-                        reject(error);
-                    });
+                }
             });
+            this.zoomToPeople();
         },
         calculateMidpoint() {
             // calculate the average latitude and longitude
@@ -557,6 +563,7 @@ export default {
                     // shift the polygon when the marker is dragged
                     marker.addListener('dragend', () => {
                         this.placesPolygon.setCenter({ lat: marker.getPosition().lat(), lng: marker.getPosition().lng() });
+                        this.crowsCentre = { lat: marker.getPosition().lat(), lng: marker.getPosition().lng() };
                     });
 
                     this.midpointMarker = marker;
@@ -586,11 +593,17 @@ export default {
         },
         showMeetingPlaces() {
             if (this.peopleCount > 1) {
-                // fire up a new places service
-                const service = new google.maps.places.PlacesService(this.map);
+                if (!this.placesService) {
+                    // fire up a new places service
+                    this.placesService = new google.maps.places.PlacesService(this.map);
+                }
+                this.placesResults = [];
+
+                // remove anything already there
+                this.removePlaces();
 
                 // do a search using our midpoint and radius
-                service.nearbySearch(
+                this.placesService.nearbySearch(
                     {
                         location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
                         radius: this.radius,
@@ -600,23 +613,30 @@ export default {
                         if (status === google.maps.places.PlacesServiceStatus.OK) {
                             this.placesResults = results;
                             // create a marker with each of them
-                            for (let i = 0; i < results.length; i++) {
-                                this.createMarker(results[i]);
-                            }
+                            this.placesResults.forEach(result => {
+                                this.createMarker(result);
+                            });
                         }
                     }
                 );
             } else {
-                // do a vuetify snackbar here
+                // do a snackbar here
                 this.snackbarText = 'Please add at least 2 people to the map';
                 this.snackbar = true;
             }
         },
+        removePlaces() {
+            this.placesMarkers.forEach(marker => {
+                marker.setVisible(false);
+                marker.setMap(null);
+            });
+            this.placesMarkers = [];
+        },
         createMarker(place) {
             // create a marker for each place
             const marker = new google.maps.Marker({
-                map: this.map,
                 position: place.geometry.location,
+                map: this.map,
                 title: place.name,
                 icon: {
                     url: place.icon,
@@ -635,6 +655,17 @@ export default {
         },
     },
     computed: {
+        routesFound() {
+            return this.people.every(person => person.route);
+        },
+        smartRadius() {
+            if (this.radius < 1000) {
+                return `${this.radius}m`;
+            } else {
+                const roundedRadius = Math.round((this.radius / 1000) * 10) / 10;
+                return `${roundedRadius}km`;
+            }
+        },
         peopleCount() {
             return this.people.length;
         },
@@ -688,12 +719,6 @@ export default {
 </script>
 
 <style scoped>
-#container {
-    position: relative;
-    height: 100%;
-    width: 100%;
-}
-
 #mapPanel {
     position: absolute;
     z-index: 1;
@@ -722,62 +747,6 @@ export default {
     z-index: 2;
 }
 
-#optionsButtons {
-    position: absolute !important;
-    top: 200px;
-    margin-left: 15px;
-    z-index: 1;
-    left: 0;
-    background-color: transparent;
-}
-
-
-.panelButtons {
-    padding: 10px;
-    border: none;
-    border-radius: 4px;
-    background-color: #62636b;
-    color: white;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-.panelButtons:hover {
-    background-color: #62636b;
-}
-
-.panelButtons:focus {
-    outline: none;
-}
-
-.panelButtons:active {
-    background-color: #62636b;
-}
-
-.panelButtons:hover {
-    background-color: #62636b;
-}
-
-.panelButtons:focus {
-    outline: none;
-}
-
-.panelButtons:active {
-    background-color: 7b63b3;
-}
-
-.optionSelector {
-    background-color: #62636b;
-    color: white;
-    border-radius: 4px;
-    margin-left: 10px;
-    height: 50px;
-    width: 250px;
-    margin-left: 10px;
-    margin-right: 10px;
-    padding-left: 10px;
-    padding-right: 10px;
-}
 
 .options-icons {
     background-color: #62636b;
@@ -809,22 +778,6 @@ export default {
     }
 }
 
-.expanding-div {
-    background-color: lightblue;
-    padding: 20px;
-    margin-top: 20px;
-}
-
-
-#optionsButtons {
-    position: absolute !important;
-    top: 200px;
-    margin-left: 15px;
-    z-index: 1;
-    left: 0;
-    background-color: transparent;
-}
-
 .panelButtons {
     padding: 10px;
     border: none;
@@ -844,11 +797,11 @@ export default {
 }
 
 .panelButtons:active {
-    background-color: #62636b;
+    background-color: #7b7c83;
 }
 
 .panelButtons:hover {
-    background-color: #62636b;
+    background-color: #7b7c83;
 }
 
 .panelButtons:focus {
@@ -859,18 +812,6 @@ export default {
     background-color: 7b63b3;
 }
 
-.optionSelector {
-    background-color: #62636b;
-    color: white;
-    border-radius: 4px;
-    margin-left: 10px;
-    height: 50px;
-    width: 250px;
-    margin-left: 10px;
-    margin-right: 10px;
-    padding-left: 10px;
-    padding-right: 10px;
-}
 
 .options-icons {
     background-color: #62636b;
@@ -900,12 +841,6 @@ export default {
     #editPersonBox {
         width: 90%;
     }
-}
-
-.expanding-div {
-    background-color: lightblue;
-    padding: 20px;
-    margin-top: 20px;
 }
 
 .place-info {
@@ -913,12 +848,70 @@ export default {
     z-index: 1;
     transform: translateX(-50%);
     width: 90%;
-    height: 75px;
+    height: 10vh;
     margin: 10px;
     left: 50%;
     top: 0;
     right: 0;
     margin-left: auto;
     margin-right: auto;
+}
+
+.info-img {
+    max-height: 75px;
+    max-width: 75px;
+}
+
+#info-arrow {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.fill-height {
+    height: 100vh;
+    padding: 0;
+    overflow: hidden;
+}
+
+.flex-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+}
+
+.map-container {
+    flex-grow: 1;
+    flex-shrink: 0;
+    max-height: 85vh;
+    overflow: hidden;
+    padding: 0;
+}
+
+.buttons-container {
+    flex-grow: 0;
+    flex-shrink: 1;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    max-height: 15vh;
+}
+
+.results-container {
+    overflow-x: auto;
+    /* Enable horizontal scrolling */
+    white-space: nowrap;
+    /* Keep items in a single line */
+}
+
+.person-details {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 16px;
+    /* Space between items */
+    /* Additional styling as needed */
 }
 </style>
