@@ -135,28 +135,34 @@
                         </v-col>
                     </v-row>
                 </v-card>
-                <v-card class="place-info" v-if="showPlaceInfo">
-                    <v-row>
-                        <v-col cols="2">
-                            <v-img src="https://via.placeholder.com/50" :fill="true" class="info-img"></v-img>
-                        </v-col>
-                        <v-col cols="8">
-                            <p>{{ selectedMarker.name }}</p>
-                            <v-rating v-model="selectedMarker.rating" :half-increments="true" :readonly="true"
-                                density="compact" color="warning"></v-rating>
-                        </v-col>
-                        <v-col cols="2" id="info-arrow" @click="findRoutes()">
-                            <v-icon>mdi-arrow-right</v-icon>
-                        </v-col>
-                    </v-row>
-                    <div class="results-container" v-if="routesFound">
-                        <div class="person-details" v-for="(person, index) in people" :key="index">
-                            <span>{{ person.name }}</span>
-                            <span>{{ person.route.routes[0].legs[0].duration.text }} </span>
-                            <span>{{ person.route.routes[0].legs[0].distance.text }}</span>
-                        </div>
-                    </div>
-                </v-card>
+                <v-expansion-panels accordion flat class="place-info" v-if="showPlaceInfo">
+                    <v-expansion-panel>
+                        <v-expansion-panel-title>
+                            {{ selectedMarker.name }}
+                            <v-rating v-model="selectedMarker.rating" dense half-increments readonly color="warning"
+                                size="small"></v-rating>
+                        </v-expansion-panel-title>
+                        <v-expansion-panel-text>
+                            <v-list>
+                                <v-list-item v-for="person in people" :key="person.name">
+                                    <v-list-item-title>{{ person.name }}</v-list-item-title>
+                                    <v-list-item-subtitle>
+                                        <v-row>
+                                            <v-col cols="6">
+                                                <v-icon>mdi-walk</v-icon>
+                                                <span>{{ person.route.routes[0].legs[0].duration.text }}</span>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-icon>mdi-map-marker-distance</v-icon>
+                                                <span>{{ person.route.routes[0].legs[0].distance.text }}</span>
+                                            </v-col>
+                                        </v-row>
+                                    </v-list-item-subtitle>
+                                </v-list-item>
+                            </v-list>
+                        </v-expansion-panel-text>
+                    </v-expansion-panel>
+                </v-expansion-panels>
             </v-col>
         </v-row>
     </v-container>
@@ -246,7 +252,7 @@ export default {
             personEditCopy: null,
             placesMarkers: [],
             placesResults: [],
-            showPlaceInfo: false,
+            showPlaceInfo: true,
             selectedMarker: {
                 name: 'Example Name',
                 rating: 3.5,
@@ -508,12 +514,12 @@ export default {
                                 map: this.map,
                                 directions: result,
                                 suppressMarkers: true,
+                                preserveViewport: true,
                             });
                         }
                     });
                 }
             });
-            this.zoomToPeople();
         },
         calculateMidpoint() {
             // calculate the average latitude and longitude
@@ -648,6 +654,7 @@ export default {
             marker.addListener("click", () => {
                 this.selectedMarker = place;
                 this.showPlaceInfo = true;
+                this.findRoutes();
             });
 
             // add the marker to the placesMarkers array
@@ -848,7 +855,6 @@ export default {
     z-index: 1;
     transform: translateX(-50%);
     width: 90%;
-    height: 10vh;
     margin: 10px;
     left: 50%;
     top: 0;
